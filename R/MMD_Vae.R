@@ -236,7 +236,7 @@ trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, 
           op_mean()
 
         trueSamples <- tf$random$normal(shape = tf$shape(zMean))
-        mmdLoss <- computeMMD(trueSamples, zMean)
+        mmdLoss <- mmdImqPenalty(trueSamples, zMean)
         totalLoss <- reconstructionLoss + lambdaWeight * mmdLoss
       })
 
@@ -264,7 +264,7 @@ trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, 
         op_mean()
 
       trueSamples <- tf$random$normal(shape = tf$shape(zMean))
-      mmdLoss <- computeMMD(trueSamples, zMean)
+      mmdLoss <- mmdImqPenalty(trueSamples, zMean)
       totalLoss <- reconstructionLoss + lambdaWeight * mmdLoss
 
       self$totalLossTracker$update_state(totalLoss)
