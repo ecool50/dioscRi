@@ -7,28 +7,28 @@
 mmdPenalty(pz, qz, batch_size = 32L, sigmaZ = 1, zDim = 16L)
 }
 \arguments{
-\item{pz}{`tensorflow.tensor` First input tensor, typically representing encoded samples.}
+\item{pz}{\code{tensorflow.tensor} First input tensor, typically representing encoded samples.}
 
-\item{qz}{`tensorflow.tensor` Second input tensor, typically representing samples from a prior distribution.}
+\item{qz}{\code{tensorflow.tensor} Second input tensor, typically representing samples from a prior distribution.}
 
-\item{sigmaZ}{`numeric` Scaling factor for the IMQ kernel, default is 1.0.}
+\item{sigmaZ}{\code{numeric} Scaling factor for the IMQ kernel, default is 1.0.}
 
-\item{zDim}{`integer` Dimensionality of the latent space, default is 16L.}
+\item{zDim}{\code{integer} Dimensionality of the latent space, default is 16L.}
 
-\item{batchSize}{`integer` Batch size used for computation, default is 32L.}
+\item{batchSize}{\code{integer} Batch size used for computation, default is 32L.}
 }
 \value{
-`tensorflow.tensor` A scalar tensor containing the computed MMD penalty value.
+\code{tensorflow.tensor} A scalar tensor containing the computed MMD penalty value.
 }
 \description{
 This function calculates the unbiased U-statistic estimator of the Maximum Mean Discrepancy (MMD)
-using the Inverse Multiquadric (IMQ) kernel. The IMQ kernel aggregates various scales by summing 
-kernels computed at different scales, leveraging the property that the sum of positive definite 
-kernels remains positive definite. This approach enables the model to analyze discrepancies 
+using the Inverse Multiquadric (IMQ) kernel. The IMQ kernel aggregates various scales by summing
+kernels computed at different scales, leveraging the property that the sum of positive definite
+kernels remains positive definite. This approach enables the model to analyze discrepancies
 across multiple resolutions.
 }
 \details{
 This implementation is adapted from the Wasserstein Autoencoder (WAE) repository:
-  <https://github.com/tolstikhin/wae/blob/master/wae.py#L233>. The penalty is calculated 
-  by summing contributions from IMQ kernels computed at multiple scales.
+\url{https://github.com/tolstikhin/wae/blob/master/wae.py#L233}. The penalty is calculated
+by summing contributions from IMQ kernels computed at multiple scales.
 }

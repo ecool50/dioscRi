@@ -1,6 +1,7 @@
 ## function: summary cv.grpregOverlap
 ## function was obtained from https://github.com/YaohuiZeng/grpregOverlap with some minor modifications
 # ------------------------------------------------------------------------------
+#' @noRd
 summary.cv.grpregOverlap <- function(object, ...) {
   obj.new <- object
   class(obj.new) <- "cv.grpreg"
@@ -23,6 +24,7 @@ summary.cv.grpregOverlap <- function(object, ...) {
 ## function: print summary.cv.grpregOverlap
 ## function was obtained from https://github.com/YaohuiZeng/grpregOverlap with some minor modifications
 # -------------------------------------------------------------------------------
+#' @noRd
 print.summary.cv.grpregOverlap <- function(x, digits, ...) {
   if (missing(digits)) {
     digits <- c(2, 4, 2, 2, 3)

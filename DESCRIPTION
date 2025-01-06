@@ -1,11 +1,47 @@
 Package: dioscRi
-Type: Package
 Title: A package for clinical prediction in high parameter cytometry
 Version: 0.1.0
-Author: Elijah Willie
-Maintainer: ewillie0004@gmail.com
-Description: This package combines deep learning with hierarchical group lasso for predicting clinical outcomes
-License: MIT
+Authors@R: 
+    person("Elijah", "Willie", , "ewil3501@uni.sydney.edu.au", role = c("aut", "cre"))
+Description: dioscRi is a deep learning-based tool designed to integrate clinical prediction with biological interpretability in high-dimensional cytometry data. By leveraging an MMD-VAE architecture for transferable normalization and denoising, and combining cell type proportions with marker means structured through empirically or biologically derived hierarchies, dioscRi provides robust and interpretable predictions. This framework excels in identifying immune signatures, improving prediction accuracy, and uncovering biologically relevant associations across diverse datasets.
+License: GPL-2
 Encoding: UTF-8
-LazyData: true
+Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+Imports:
+    SummarizedExperiment,
+    boot,
+    Rfast,
+    stats,
+    coop,
+    ggtree,
+    caret,
+    janitor,
+    dplyr,
+    ggpubr,
+    reshape2,
+    tidyr,
+    tibble,
+    grpreg,
+    ggplot2,
+    doParallel,
+    ROCR,
+    scales,
+    ggnewscale,
+    treekoR,
+    keras3,
+    tensorflow
+LazyData: false
+BuildResaveData: false
+Depends: 
+    R (>= 4.2.0)
+Suggests: 
+    knitr,
+    BiocStyle,
+    rmarkdown,
+    SingleCellExperiment
+VignetteBuilder: knitr
+BugReports: https://github.com/ecool50/dioscRi/issues
+URL: https://ecool50.github.io/dioscRi/
+biocViews: 
+    SingleCell, CellBasedAssays, Clustering, Spatial

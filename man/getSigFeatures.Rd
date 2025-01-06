@@ -29,8 +29,8 @@ getSigFeatures(
 }
 \value{
 List containing:
-  \item{stats}{Data frame of statistical test results for each feature.}
-  \item{sigFeatures}{Data frame of significant features with expression/proportion values.}
+\item{stats}{Data frame of statistical test results for each feature.}
+\item{sigFeatures}{Data frame of significant features with expression/proportion values.}
 }
 \description{
 Extracts significant features from a fitted group lasso model based on either

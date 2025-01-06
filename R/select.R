@@ -1,6 +1,7 @@
 ## function: select, experimental
 ## function was obtained from https://github.com/YaohuiZeng/grpregOverlap with some minor modifications
 # -------------------------------------------------------------------------------
+#' @noRd
 select.grpregOverlap <- function(obj, criterion = c(
                                    "BIC", "AIC",
                                    "GCV", "AICc", "EBIC"

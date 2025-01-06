@@ -7,7 +7,7 @@
 generateGroups(tree, nClust = 20, proportions, means, type = "all")
 }
 \arguments{
-\item{tree}{A hierarchical clustering tree generated from `generateTree`.}
+\item{tree}{A hierarchical clustering tree generated from \code{generateTree}.}
 
 \item{proportions}{Data frame of cell type proportions.}
 

@@ -369,7 +369,6 @@ plotElbow <- function(bics) {
 #' @param alphaSearch Numeric vector of alpha values to search.
 #' @param seed Integer; random seed for reproducibility.
 #' @return A list with the best fitted model, best BIC, best alpha, and BIC values for each alpha.
-#' @importFrom grpregOverlap cv.grpregOverlap grpregOverlap BIC
 #' @export
 selectAlpha <- function(xTrain, yTrain, groups, penalty = "cMCP", weights,
                         alphaSearch = seq(0.01, 0.1, by = 0.01), seed = 1994) {
@@ -476,74 +475,73 @@ selectLambdaParallel <- function(xTrain, yTrain, groups, penalty = "cMCP",
 #' @param lambdaSearch Numeric vector of lambda values to search.
 #' @param seed Integer; random seed for reproducibility.
 #' @return A list with the best fitted model, best BIC, best lambda, and BIC values for each lambda.
-#' @importFrom grpregOverlap BIC grpregOverlap
 #' @export
 selectLambda <- function(xTrain, yTrain, groups, penalty = "cMCP",
                          alphaRange = seq(0.1, 1, length = 10),
                          lambdaSearch = seq(0.01, 1, length = 10), seed = 1994) {
-  set.seed(seed)
-
-  # Initialize variables to store the best results
-  bestBIC <- Inf
-  bestLambda <- NA
-  bestAlpha <- NA
-  bestFit <- NULL
-  all_bics <- matrix(NA, nrow = length(alphaRange), ncol = length(lambdaSearch))
-  rownames(all_bics) <- paste0("Alpha_", alphaRange)
-  colnames(all_bics) <- paste0("Lambda_", round(lambdaSearch, 4))
-
-  # Loop over alpha values
-  for (alpha_idx in seq_along(alphaRange)) {
-    alpha <- alphaRange[alpha_idx]
-    cat("Testing alpha =", alpha, "\n")
-
-    # Fit model for the given alpha and lambda range
-    fit <- tryCatch(
-      {
-        grpregOverlap(
-          xTrain, yTrain, groups,
-          family = "binomial", alpha = alpha,
-          lambda = lambdaSearch, penalty = penalty, seed = seed,
-          returnX.latent = TRUE, returnOverlap = FALSE
+    set.seed(seed)
+    
+    # Initialize variables to store the best results
+    bestBic <- Inf
+    bestLambda <- NA
+    bestAlpha <- NA
+    bestFit <- NULL
+    allBics <- matrix(NA, nrow = length(alphaRange), ncol = length(lambdaSearch))
+    rownames(allBics) <- paste0("Alpha_", alphaRange)
+    colnames(allBics) <- paste0("Lambda_", round(lambdaSearch, 4))
+    
+    # Loop over alpha values
+    for (alphaIdx in seq_along(alphaRange)) {
+        alpha <- alphaRange[alphaIdx]
+        cat("Testing alpha =", alpha, "\n")
+        
+        # Fit model for the given alpha and lambda range
+        fit <- tryCatch(
+            {
+                grpregOverlap(
+                    xTrain, yTrain, groups,
+                    family = "binomial", alpha = alpha,
+                    lambda = lambdaSearch, penalty = penalty, seed = seed,
+                    returnX.latent = TRUE, returnOverlap = FALSE
+                )
+            },
+            error = function(e) {
+                message("Error fitting model for alpha =", alpha, ": ", e$message)
+                return(NULL)
+            }
         )
-      },
-      error = function(e) {
-        message("Error fitting model for alpha =", alpha, ": ", e$message)
-        return(NULL)
-      }
-    )
-
-    # If the model fitting fails, skip to the next alpha
-    if (is.null(fit)) next
-
-    # Extract deviance and calculate BIC for each lambda
-    deviances <- fit$deviance
-    n <- nrow(xTrain)
-    valid_lambda <- length(deviances) # Actual number of valid lambdas
-    bic <- deviances + (fit$df * log(n))
-    all_bics[alpha_idx, seq_len(valid_lambda)] <- bic # Store valid BICs
-
-    # Find the best lambda for this alpha
-    min_bic_idx <- computeElbow(bic)
-    min_bic <- bic[min_bic_idx]
-
-    if (min_bic < bestBIC) {
-      bestBIC <- min_bic
-      bestLambda <- fit$lambda[min_bic_idx] # Use actual lambda values
-      bestAlpha <- alpha
-      bestFit <- fit
-      cat("New best BIC:", bestBIC, "at alpha =", bestAlpha, "lambda =", bestLambda, "\n")
+        
+        # If the model fitting fails, skip to the next alpha
+        if (is.null(fit)) next
+        
+        # Extract deviance and calculate BIC for each lambda
+        deviances <- fit$deviance
+        n <- nrow(xTrain)
+        validLambda <- length(deviances) # Actual number of valid lambdas
+        bic <- deviances + (fit$df * log(n))
+        allBics[alphaIdx, seq_len(validLambda)] <- bic # Store valid BICs
+        
+        # Find the best lambda for this alpha
+        minBicIdx <- computeElbow(bic)
+        minBic <- bic[minBicIdx]
+        
+        if (minBic < bestBic) {
+            bestBic <- minBic
+            bestLambda <- fit$lambda[minBicIdx] # Use actual lambda values
+            bestAlpha <- alpha
+            bestFit <- fit
+            cat("New best BIC:", bestBic, "at alpha =", bestAlpha, "lambda =", bestLambda, "\n")
+        }
     }
-  }
-
-  # Return the best results and all BICs
-  return(list(
-    bestFit = bestFit,
-    bestBIC = bestBIC,
-    bestLambda = bestLambda,
-    bestAlpha = bestAlpha,
-    all_bics = all_bics
-  ))
+    
+    # Return the best results and all BICs
+    return(list(
+        bestFit = bestFit,
+        bestBic = bestBic,
+        bestLambda = bestLambda,
+        bestAlpha = bestAlpha,
+        allBics = allBics
+    ))
 }
 
 #' Fit Overlapping Group Lasso Model
@@ -559,7 +557,6 @@ selectLambda <- function(xTrain, yTrain, groups, penalty = "cMCP",
 #' @param modelSummary Logical; should the model summary be printed
 #' @param seed Integer; random seed for reproducibility.
 #' @return List containing the fitted model.
-#' @importFrom grpregOverlap cv.grpregOverlap grpregOverlap
 #' @export
 fitModel <- function(xTrain, yTrain, groups, alpha = NULL, lambda = NULL,
                      alphaSearch = seq(0.01, 0.1, 0.01),

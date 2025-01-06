@@ -313,7 +313,7 @@ generateGroups <- function(tree, nClust = 20, proportions, means, type = "all") 
 #'   \item{stats}{Data frame of statistical test results for each feature.}
 #'   \item{sigFeatures}{Data frame of significant features with expression/proportion values.}
 #' @importFrom dplyr mutate select filter left_join group_by
-#' @importFrom ggpubr t_test adjust_pvalue add_significance add_xy_position
+#' @importFrom rstatix t_test adjust_pvalue add_significance add_xy_position
 #' @importFrom reshape2 melt
 #' @export
 getSigFeatures <- function(fit, type = "mean", mean = NULL, clinicalVariables = NULL,

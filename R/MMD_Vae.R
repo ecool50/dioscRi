@@ -116,7 +116,7 @@ computeMMD <- function(x, y, sigmaSqr = 1.0) {
 #' @param batchSize Integer; batch size for training, default is 16.
 #' @return List containing the trained VAE model and encoder.
 #' @importFrom tensorflow tf set_random_seed
-#' @importFrom keras layer_input layer_dense keras_model new_model_class
+#' @importFrom keras3 layer_input layer_dense keras_model new_model_class
 #' @export
 trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, seed = 1994,
                           lambda = 0.1, valData, originalDim = 27L, batchSize = 16,
@@ -270,7 +270,6 @@ trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, 
 #' @param batchSize Integer; batch size for decoding, default is 16.
 #' @return List with decoded samples and encoded latent representations.
 #' @importFrom tensorflow tf
-#' @importFrom keras predict
 #' @export
 decodeSamples <- function(newSamples, vae, latentDim = 16L, batchSize = 32L) {
     tensorflow::set_random_seed(seed = 1994)

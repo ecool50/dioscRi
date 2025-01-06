@@ -1,6 +1,7 @@
 ## function: predict grpregOverlap
 ## function was obtained from https://github.com/YaohuiZeng/grpregOverlap with some minor modifications
 # -------------------------------------------------------------------------------
+#' @noRd
 predict.grpregOverlap <- function(object, X,
                                   type = c(
                                     "link", "response", "class",
@@ -88,6 +89,7 @@ predict.grpregOverlap <- function(object, X,
 
 ## function: coef.grpregOverlap, coef for grpregOverlap
 # -------------------------------------------------------------------------------
+#' @noRd
 coef.grpregOverlap <- function(object, lambda, latent = FALSE,
                                which = 1:length(object$lambda), drop = TRUE, ...) {
   family <- object$family
