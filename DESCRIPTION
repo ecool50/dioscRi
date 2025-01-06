@@ -42,6 +42,6 @@ Suggests:
     SingleCellExperiment
 VignetteBuilder: knitr
 BugReports: https://github.com/ecool50/dioscRi/issues
-URL: https://ecool50.github.io/dioscRi/
+URL: https://github.com/ecool50/dioscRi
 biocViews: 
     SingleCell, CellBasedAssays, Clustering, Spatial
