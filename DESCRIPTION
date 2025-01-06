@@ -30,7 +30,8 @@ Imports:
     ggnewscale,
     treekoR,
     keras3,
-    tensorflow
+    tensorflow,
+    Matrix
 LazyData: false
 BuildResaveData: false
 Depends: 

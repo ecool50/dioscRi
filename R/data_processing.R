@@ -50,6 +50,7 @@ getProp <- function(cells, feature = "clusters", imageID = "sample_id", logit = 
 #' @return A list containing the matrix of norms, average norms, and sample indices
 #' for top, bottom, median, reference, and validation samples.
 #' @importFrom Rfast cova Norm
+#' @importFrom stats median
 #' @export
 computeReferenceSample <- function(data, markers, sampleCol = "sample_id", N = 2) {
   # Initialize containers for covariance matrices and norm calculations
@@ -102,7 +103,7 @@ computeReferenceSample <- function(data, markers, sampleCol = "sample_id", N = 2
 #' @param clusterMarkers Logical; if TRUE, clusters markers in the heatmap.
 #' @param fontSize Numeric; font size for heatmap labels.
 #' @return A matrix ready for heatmap visualization.
-#' @importFrom stats aggregate
+#' @importFrom stats aggregate sd
 #' @export
 generateHeatmapMatrix <- function(data, markers = NULL, clusters = NULL, threshold = 2,
                                   clusterMarkers = FALSE, fontSize = 14) {
@@ -211,6 +212,42 @@ trainCellTypeClassifier <- function(trainX, testX, model = "lda") {
   return(predictedCellTypes)
 }
 
+
+#' findChildren
+#'
+#' @param tree a ggtree object
+#'
+#' @return a ggtree object with the data containing a column with the clusters
+#' contained in each node
+#' @importFrom dplyr mutate group_by arrange filter
+#' @export
+findChildren <- function(tree) {
+    d <- tree$data
+    d$clusters <- d$label
+    d$clusters <- as.list(as.character(d$clusters))
+    uNodes <- sort(unique(d$x), decreasing = TRUE)
+    for(x in uNodes){
+        nodes = as.matrix(d[which(d$x==x), "node"])
+        for(n in nodes){
+            parentNode <- as.character(d$parent[which(d$node == n)])
+            childClusters <- d$clusters[[which(d$node == n)]]
+            parentNodeInd <- which(d$node == parentNode)
+            if (is.na(d$clusters[parentNodeInd])) {
+                d$clusters[[parentNodeInd]] <- childClusters
+            } else {
+                d$clusters[[parentNodeInd]] <- c(d$clusters[[parentNodeInd]], childClusters)
+            }
+        }
+    }
+    d$clusters <- lapply(d$clusters, unlist)
+    d$clusters <- lapply(d$clusters, unique)
+    d$clusters <- lapply(d$clusters, function(x) x[!is.na(x)])
+    
+    tree$data <- d
+    return(tree)
+}
+
+
 #' Generate Hierarchical Clustering Tree for Group Lasso
 #'
 #' Constructs a hierarchical clustering tree from feature correlations for use
@@ -220,8 +257,10 @@ trainCellTypeClassifier <- function(trainX, testX, model = "lda") {
 #' @param method Character; clustering method, default is "ward".
 #' @return List containing the hierarchical tree structure and node order.
 #' @importFrom coop pcor
-#' @importFrom ggtree ggtree
+#' @importFrom psych cor2dist
 #' @importFrom stats as.dist hclust
+#' @importFrom ape as.phylo
+#' @importFrom ggtree ggtree
 #' @export
 generateTree <- function(features, method = "ward") {
   # Compute the pairwise correlation distance matrix
@@ -236,7 +275,7 @@ generateTree <- function(features, method = "ward") {
   hclustObj <- hcTree
 
   # Find child nodes within the tree for dendrogram representation
-  hcTree <- treekoR:::findChildren(
+  hcTree <- findChildren(
     ggtree(as.phylo(hcTree), ladderize = FALSE, layout = "dendrogram")
   )
 
@@ -255,6 +294,7 @@ generateTree <- function(features, method = "ward") {
 #' @param type Character; group type to generate ("all", "prop", or "mean").
 #' @return List of variable groups for overlapping group lasso.
 #' @importFrom janitor make_clean_names
+#' @importFrom dplyr mutate group_by
 #' @export
 generateGroups <- function(tree, nClust = 20, proportions, means, type = "all") {
   # Extract clusters and assign group numbers
@@ -312,9 +352,9 @@ generateGroups <- function(tree, nClust = 20, proportions, means, type = "all") 
 #' @return List containing:
 #'   \item{stats}{Data frame of statistical test results for each feature.}
 #'   \item{sigFeatures}{Data frame of significant features with expression/proportion values.}
-#' @importFrom dplyr mutate select filter left_join group_by
-#' @importFrom rstatix t_test adjust_pvalue add_significance add_xy_position
+#' @importFrom dplyr mutate select filter left_join group_by sym
 #' @importFrom reshape2 melt
+#' @importFrom rstatix t_test adjust_pvalue add_significance add_xy_position
 #' @export
 getSigFeatures <- function(fit, type = "mean", mean = NULL, clinicalVariables = NULL,
                            prop = NULL, clinicalData = NULL, outcome = NULL) {
@@ -396,7 +436,7 @@ getSigFeatures <- function(fit, type = "mean", mean = NULL, clinicalVariables = 
 #' @param assay Character; assay name from which to extract marker values.
 #' @return Data frame of features for group lasso model.
 #' @importFrom SummarizedExperiment colData assay
-#' @importFrom dplyr group_by summarise_at left_join mutate
+#' @importFrom dplyr group_by summarise_at left_join mutate select sym
 #' @importFrom tidyr pivot_longer pivot_wider
 #' @importFrom tibble column_to_rownames
 #' @export

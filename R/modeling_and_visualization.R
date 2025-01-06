@@ -8,9 +8,13 @@
 #' @param treeData Data containing hierarchical structure of features.
 #' @param nodesToRemove Vector of nodes to remove from the hierarchy.
 #' @return A ggplot object representing the feature tree.
-#' @importFrom dplyr mutate filter full_join
+#' @importFrom dplyr mutate filter full_join group_by summarise rename
 #' @importFrom tidyr pivot_wider
 #' @importFrom ggtree ggtree geom_tiplab geom_nodepoint
+#' @importFrom ggnewscale new_scale_color
+#' @importFrom ggplot2 scale_color_gradient2
+#' @importFrom stringr str_replace
+#' @importFrom scales muted
 #' @export
 plotOverlapTree <- function(modelFit, trainingData, treeData, nodesToRemove) {
   # Function to sort each sublist
@@ -67,30 +71,30 @@ plotOverlapTree <- function(modelFit, trainingData, treeData, nodesToRemove) {
       dplyr::full_join(treeClusterData, by = "node") %>%
       dplyr::mutate(betaInternal = if_else(isTip == FALSE, betaValues, 0)) %>%
       dplyr::mutate(betaLeaf = if_else(isTip == TRUE, betaValues, 0)) %>%
-      mutate_at(vars(betaValues, betaLeaf, betaInternal), ~ replace_na(., 0))
+      dplyr::mutate_at(vars(betaValues, betaLeaf, betaInternal), ~ replace_na(., 0))
   }
 
   resultData$label <- str_replace(resultData$label, paste0("_", "logit"), "")
   resultData$label <- str_replace(resultData$label, "_", " ")
 
   # Create ggplot object for dendrogram visualization
-  plot <- ggtree(resultData, layout = "dendrogram", hang = 0) +
-    geom_tiplab(as_ylab = TRUE, geom = "text", size = 12, color = "black") +
-    geom_nodepoint(aes(subset = betaInternal != 0, color = betaInternal), size = 10) +
-    geom_nodepoint(aes(color = betaInternal), size = 0) +
-    scale_color_gradient2(
+  plot <- ggtree::ggtree(resultData, layout = "dendrogram", hang = 0) +
+      ggtree::geom_tiplab(as_ylab = TRUE, geom = "text", size = 12, color = "black") +
+      ggtree::geom_nodepoint(aes(subset = betaInternal != 0, color = betaInternal), size = 10) +
+      ggtree::geom_nodepoint(aes(color = betaInternal), size = 0) +
+    ggplot2::scale_color_gradient2(
       mid = "grey", high = muted("purple"),
       midpoint = 0, name = "Beta Internal",
       guide = guide_colorbar(order = 2)
     ) +
-    new_scale_color() +
-    geom_tippoint(aes(subset = betaLeaf != 0, color = betaLeaf), size = 10) +
-    scale_color_gradient2(
+      ggnewscale::new_scale_color() +
+    ggtree::geom_tippoint(aes(subset = betaLeaf != 0, color = betaLeaf), size = 10) +
+    ggplot2::scale_color_gradient2(
       low = muted("green"), high = muted("orange"), mid = "grey",
       midpoint = 0, name = "Beta Leaf",
       guide = guide_colorbar(order = 3)
     ) +
-    geom_tippoint(aes(color = betaLeaf), size = 0)
+    ggtree::geom_tippoint(aes(color = betaLeaf), size = 0)
 
   return(plot)
 }
@@ -111,6 +115,10 @@ plotOverlapTree <- function(modelFit, trainingData, treeData, nodesToRemove) {
 #' @importFrom dplyr filter mutate select
 #' @importFrom tidyr pivot_wider
 #' @importFrom ggtree ggtree geom_tiplab
+#' @importFrom ggtree gheatmap
+#' @importFrom ggplot2 labs theme scale_fill_gradientn
+#' @importFrom stringr str_replace
+#' @importFrom scales rescale
 #' @export
 visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
                                trainingData, nodesToRemove = NULL,
@@ -157,17 +165,18 @@ visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
   # Reshape data to wide format for heatmap plotting
   coefsWide <- coefs %>%
     dplyr::select(cellType, marker, V1) %>%
-    pivot_wider(names_from = cellType, values_from = V1) %>%
+      tidyr::pivot_wider(names_from = cellType, values_from = V1) %>%
     as.data.frame()
 
   rownames(coefsWide) <- coefsWide$marker
   coefsWide <- coefsWide %>% dplyr::select(-marker)
 
-  colnames(coefsWide) <- str_replace(colnames(coefsWide), "logit", "")
-  colnames(coefsWide) <- str_replace(colnames(coefsWide), "_", " ")
+  colnames(coefsWide) <- stringr::str_replace(colnames(coefsWide), "logit", "")
+  colnames(coefsWide) <- stringr::str_replace(colnames(coefsWide), "_", " ")
 
   # Determine color scale limits and colors for the heatmap
-  valRange <- range(coefsWide)
+  # print(head(coefsWide))
+  valRange <- base::range(coefsWide)
   if (valRange[1] < 1e-16) valRange[1] <- -valRange[2]
 
   colorBreaks <- c(valRange[1], 0, valRange[2])
@@ -175,7 +184,7 @@ visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
 
   # Order the rows and apply the heatmap to the plot
   coefsWide <- coefsWide[order(rownames(coefsWide), decreasing = FALSE), ]
-  gheatmap(p,
+  ggtree::gheatmap(p,
     data = t(coefsWide), offset = 0, hjust = 0.5, colnames_offset_y = -0.4,
     colnames_offset_x = 0, color = "black", font.size = 4, width = 2.5
   ) +
@@ -212,6 +221,9 @@ visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
 #' @importFrom ggpubr ggboxplot stat_pvalue_manual
 #' @importFrom dplyr group_by select mutate
 #' @importFrom reshape2 melt
+#' @importFrom ggplot2 aes geom_density facet_wrap labs theme_minimal theme_bw
+#' @importFrom ggsci scale_color_jco
+#' @importFrom ggplot2 scale_y_continuous
 #' @export
 plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "density") {
   pltData <- sigFeatures %>%
@@ -219,7 +231,7 @@ plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "den
     dplyr::group_by(!!dplyr::sym(outcome)) %>%
     dplyr::select(stats$feature) %>%
     as.data.frame() %>%
-    melt() %>%
+    reshape2::melt() %>%
     dplyr::mutate(feature = variable)
 
   if (type == "density") {
@@ -240,10 +252,10 @@ plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "den
         legend.position = "top",
         strip.text.x = element_text(size = 16, colour = "black", face = "bold")
       ) +
-      scale_color_jco()
+      ggsci::scale_color_jco()
   } else {
     p <- pltData %>%
-      ggboxplot(
+      ggpubr::ggboxplot(
         x = outcome, y = "value",
         color = outcome, palette = "jco",
         facet.by = "feature", scale = "free_y"
@@ -264,7 +276,7 @@ plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "den
         legend.position = "None",
         strip.text.x = element_text(size = 16, colour = "black", face = "bold")
       ) +
-      stat_pvalue_manual(
+        ggpubr::stat_pvalue_manual(
         stats,
         label = "p.adj", tip.length = 0,
         size = 6, color = "red"
@@ -405,62 +417,6 @@ selectAlpha <- function(xTrain, yTrain, groups, penalty = "cMCP", weights,
   }
 
   return(list(bestFit = bestFit, bestBIC = bestBIC, bestAlpha = bestAlpha, bics = bics))
-}
-
-
-selectLambdaParallel <- function(xTrain, yTrain, groups, penalty = "cMCP",
-                                 alpha = 1, lambdaSearch = seq(0.01, 1, by = 0.01),
-                                 seed = 1994, BPPARAM = MulticoreParam(progressbar = TRUE, force.GC = F, workers = 10)) {
-  set.seed(seed)
-  bestBIC <- Inf
-  bestLambda <- NA
-  bestFit <- NULL
-
-  # Define function to process each lambda
-  processLambda <- function(lambda) {
-    fit <- tryCatch(
-      {
-        grpregOverlap(xTrain, yTrain, groups,
-          family = "binomial", alpha = alpha,
-          lambda = lambda, penalty = penalty, seed = seed,
-          returnX.latent = TRUE, returnOverlap = FALSE
-        )
-      },
-      error = function(e) NULL
-    )
-
-    # Compute BIC if model fitting was successful
-    if (!is.null(fit)) {
-      currentBIC <- tryCatch(
-        {
-          round(BIC(fit), 2)
-        },
-        error = function(e) Inf
-      )
-      return(list(lambda = lambda, BIC = currentBIC, fit = fit))
-    } else {
-      return(list(lambda = lambda, BIC = Inf, fit = NULL))
-    }
-  }
-
-  # Run the processLambda function in parallel over lambdaSearch with progress bar
-  results <- bplapply(lambdaSearch, processLambda, BPPARAM = BPPARAM)
-
-  # Combine results and find the best lambda
-  bics <- sapply(results, function(res) res$BIC)
-  bestIndex <- which.min(bics)
-
-  if (length(bestIndex) > 0 && bics[bestIndex] != Inf) {
-    bestBIC <- bics[bestIndex]
-    bestLambda <- results[[bestIndex]]$lambda
-    bestFit <- results[[bestIndex]]$fit
-  }
-
-  # Print optimal lambda
-  message(paste("Optimal lambda:", bestLambda, "with BIC:", bestBIC))
-
-  # Return results
-  return(list(bestFit = bestFit, bestBIC = bestBIC, bestLambda = bestLambda, bics = bics))
 }
 
 #' Select Optimal Lambda for Group Lasso Model
@@ -617,9 +573,10 @@ fitModel <- function(xTrain, yTrain, groups, alpha = NULL, lambda = NULL,
 #' @param order Optional vector to order clusters in the heatmap.
 #' @param markerOrder Optional vector to order markers in the heatmap.
 #' @return ggplot object representing the heatmap.
-#' @importFrom dplyr filter select
+#' @importFrom dplyr filter select mutate
 #' @importFrom tidyr pivot_wider
 #' @importFrom ggplot2 ggplot aes geom_tile scale_fill_gradientn theme element_text
+#' @importFrom reshape2 melt
 #' @export
 plotHeatmap <- function(fit, type = "cluster", order = NULL, markerOrder = NULL) {
   # Extract and filter coefficients
@@ -698,53 +655,4 @@ plotHeatmap <- function(fit, type = "cluster", order = NULL, markerOrder = NULL)
     )
 
   return(heatmapPlot)
-}
-
-#' Train and Predict Cell Type Classifier Using caret
-#'
-#' Trains a cell type classifier using LDA (or other specified models) and performs
-#' predictions on test data.
-#' @param trainData Data frame; training data with cell type labels.
-#' @param testData Data frame; test data to predict cell types.
-#' @param model Character; machine learning model to use, default is "lda".
-#' @return Vector of predicted cell types for the test data.
-#' @importFrom caret train trainControl
-#' @importFrom doParallel registerDoParallel
-#' @export
-cellTypeClassifier <- function(trainData, testData, model = "lda") {
-  # Set up cross-validation control
-  fitControl <- trainControl(method = "cv", number = 3)
-
-  # Fit the model
-  message("Fitting cell type model")
-  set.seed(1994)
-  fit <- caret::train(
-    cellTypes ~ .,
-    data = trainData, method = model,
-    trControl = fitControl, preprocess = c("range")
-  )
-  print(fit)
-
-  # Predict on test data
-  message("Predicting on test data")
-  testCellTypes <- predict(fit, testData)
-
-  return(testCellTypes)
-}
-
-#' Compute Elbow Point for BIC Plot
-#'
-#' Identifies the optimal elbow point in a BIC plot, commonly used for selecting
-#' the alpha parameter in group lasso models.
-#' @param vals Numeric vector of BIC values across different alpha values.
-#' @return Integer; index of the elbow point, indicating the optimal alpha.
-#' @export
-computeElbow <- function(vals) {
-  # Calculate differences between consecutive BIC values
-  diffs <- diff(vals)
-  # diffs <- diffs[-1]
-  # Identify the index of the largest change, interpreted as the elbow
-  optKb <- which.max(abs(diffs)) + 1
-
-  return(optKb)
 }
