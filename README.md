@@ -7,7 +7,7 @@ in `high parameter cytometry assays`.
 Overview
 --------
 
-**dioscRi** provides a predictive modelling of `high parameter cytometry assays`.
+**dioscRi** provides predictive modelling of `high parameter cytometry assays`.
 This pipeline uses the `MMMD-VAE` architecture coupled with `Group-Lasso` that incorporates cell type hierarchies for predicting clinical outcomes.
 We also provide functions for model visualisation and interpretation.
 
@@ -19,7 +19,7 @@ If you would like the most up-to-date features, install the development version 
 ```
 # install.packages("devtools")
 devtools::install_github("https://github.com/ecool50/VaeTOF/")
-library(FuseSOM)
+library(dioscRi)
 ```
 ### Submitting an issue or feature request
 
