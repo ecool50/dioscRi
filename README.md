@@ -14,6 +14,13 @@ We also provide functions for model visualisation and interpretation.
 Installation
 --------
 Before installing this package, [tensorflow - 2.16.2](https://tensorflow.rstudio.com) and [keras3 - 1.2.0](https://keras.rstudio.com) must be installed in Python and connected to R .
+
+If you would like the most up-to-date features, install the development version from GitHub.
+```
+# install.packages("devtools")
+devtools::install_github("https://github.com/ecool50/VaeTOF/")
+library(FuseSOM)
+```
 ### Submitting an issue or feature request
 
 `dioscRi` is still under active development. We would greatly appreciate any and 
