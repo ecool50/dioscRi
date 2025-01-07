@@ -1,9 +1,9 @@
 dioscRi
 ======================================================
-<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.png align="right" height="200">
+<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.png align="middle" height="200">
 
 
-A deep learning frame work that combines a `MMD-VAE` with hierarchical `Group-Lasso` for clinical prediction
+A deep learning framework that combines an `MMD-VAE` with hierarchical `Group-Lasso` for clinical prediction
 in `high parameter cytometry assays`.
 
 Overview
