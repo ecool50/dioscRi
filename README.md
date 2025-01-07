@@ -18,7 +18,7 @@ Before installing this package, [tensorflow - 2.16.2](https://tensorflow.rstudio
 If you would like the most up-to-date features, install the development version from GitHub.
 ```
 # install.packages("devtools")
-devtools::install_github("https://github.com/ecool50/VaeTOF/")
+devtools::install_github("https://github.com/ecool50/dioscRi/")
 library(dioscRi)
 ```
 ### Submitting an issue or feature request
@@ -26,7 +26,7 @@ library(dioscRi)
 `dioscRi` is still under active development. We would greatly appreciate any and 
 all feedback related to the package.
 
-* R package related issues should be raised [here](https://github.com/ecool50/VaeTOF/issues).
+* R package related issues should be raised [here](https://github.com/ecool50/dioscRi/issues).
 * For general questions and feedback, please contact us directly via [ewil3501@uni.sydney.edu.au](mailto:ewil3501@uni.sydney.edu.au).
 
 
