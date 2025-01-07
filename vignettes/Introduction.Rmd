@@ -1,0 +1,34 @@
+---
+title: "dioscRi package manual"
+author: "Elijah Willie"
+date: "`r Sys.Date()`"
+output:
+    BiocStyle::html_document:
+        toc: true
+vignette: >
+  %\VignetteIndexEntry{dioscRi package manual}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r knitr-options, echo=FALSE, message=FALSE, warning=FALSE}
+library(knitr)
+opts_chunk$set(fig.align = 'center', fig.width = 6, fig.height = 5, dev = 'png')
+```
+
+# Installation
+```{r, eval = FALSE}
+# install.packages("devtools")
+devtools::install_github("https://github.com/ecool50/dioscRi/")
+library(dioscRi)
+```
+
+# Introduction
+
+`dioscRi` is an R package designed to provide an end-to-end solution for identifying significant features in single-cell or multiplexed imaging data. Leveraging hierarchical clustering, overlapping group lasso, and downstream interpretative tools, dioscRi allows researchers to identify and understand the biological relevance of features, offering a robust framework for hypothesis generation and data-driven insights.
+
+# Overview of the dioscRi workflow
+
+The dioscRi pipeline comprises several distinct yet interconnected steps, ensuring a smooth analytical workflow for feature identification and downstream interpretation:
+
+ 
