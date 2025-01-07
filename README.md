@@ -1,6 +1,6 @@
 dioscRi
 ======================================================
-![]("inst/dioscRi_overview.png")
+<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.png align="right" height="200">
 
 
 A deep learning frame work that combines a `MMD-VAE` with hierarchical `Group-Lasso` for clinical prediction
