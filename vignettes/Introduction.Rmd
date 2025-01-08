@@ -13,7 +13,7 @@ vignette: >
 
 ```{r knitr-options, echo=FALSE, message=FALSE, warning=FALSE}
 library(knitr)
-opts_chunk$set(fig.align = 'center', fig.width = 6, fig.height = 5, dev = 'png')
+# opts_chunk$set(fig.align = 'center', fig.width = 6, fig.height = 5, dev = 'png')
 ```
 
 # Installation
@@ -31,4 +31,317 @@ library(dioscRi)
 
 The dioscRi pipeline comprises several distinct yet interconnected steps, ensuring a smooth analytical workflow for feature identification and downstream interpretation:
 
+<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.png align="middle" height="400" width="1200">
+
+## Summary of the **dioscRi** Pipeline
+
+- **Transferable Normalization**:
+  - A neural network is trained on the training samples to remove technical variability while preserving biological heterogeneity.
+  - This step ensures consistent data normalization for downstream analysis.
+
+- **Cell Typing**:
+  - Cell populations are identified using clustering, manual gating, or reference-based methods.
+  - This step establishes distinct cell type labels for each sample.
+
+- **Cell Type Grouping**:
+  - Hierarchical relationships between cell types are defined using tools like **treekoR** or through manual annotations.
+  - Groups are structured for interpretability and predictive modeling.
+
+- **Prediction and Interpretation**:
+  - Hierarchical group lasso models are used to make predictions based on grouped cell types or features.
+  - The model provides interpretable outputs to understand key contributing features or cell populations.
+
+- **New Sample Normalization**:
+  - The trained normalization model is applied to normalize new samples, ensuring compatibility with the training data.
+
+- **Cell Type Classification**:
+  - Cell types in new samples are classified based on the pre-defined cell type structure and trained model.
+
+- **New Sample Classification**:
+  - Patient-level predictions are generated for new samples, providing probabilities or classifications (e.g., healthy vs. diseased).
+  - This final step enables the application of the model for clinical or experimental outcomes.
+
+# Load in required libraries
+```{r}
+rm(list = ls())
+gc()
+suppressPackageStartupMessages({
+    library(dioscRi)
+library(keras3)
+library(tidyverse)
+library(tensorflow)
+library(data.table)
+library(caret)
+library(SingleCellExperiment)
+library(FuseSOM)
+})
+
+set_random_seed(1994)
+```
+
+# Set the markers
+```{r}
+useMarkers <- c('HLA_DR', 'CD3', 'CD4', 'CD8a', 'CD25', 'CD127', 'FoxP3', 'CD27',
+                'KLRG1', 'CD56', 'CD45RO', 'CD45RA', 'CD192_CCR2', 'CD194_CCR4',
+                'CD196_CCR6',
+                'CD39', 'CD38', 'Ki67', 'CD183_CXCR3', 'CCR7', 'CD19', 'CD20',
+                'IgD', 'CD14', 'CD304', 'CD141', 'CD1c_PE')
+
+allMarkers <- c('HLA_DR', 'CD3', 'CD4', 'CD8a', 'CD25', 'CD127', 'FoxP3', 'CD27',
+                'KLRG1', 'CD56', 'CD45RO', 'CD45RA', 'CD192_CCR2', 'CD194_CCR4',
+                'CD196_CCR6',
+                'CD39', 'CD38', 'Ki67', 'CD183_CXCR3', 'CCR7', 'CD19', 'CD20',
+                'IgD', 'CD14', 'CD304', 'CD141', 'CD1c_PE', "CD11b", "CD253_TRAIL",
+                "CD34", "CD61", "CD11c", "eNOS", "LOX_1", "CD86", "CD16", "CD45_106",
+                "CD45_108", "P2X7", "NOX5")
+```
+
+
+# Read in the datasets
+## Discovery study for training
+```{r}
+# study 4
+set.seed(1994)
+df_train <- fread('../../raw_data/bioheart_ct_cytof_data_b4_mg.csv',
+              nThread = 7) %>%
+  as.data.frame()
+```
+
+
+# Transform the training dataset using the arsinh function with cofactor of 5
+```{r}
+df_train[, useMarkers]  <- cyCombine::transform_asinh(df_train[, useMarkers], 
+                                                markers = useMarkers, derand = F)
+
+colnames(df_train)[colnames(df_train) %in% useMarkers] <- 
+  gsub("_", "-", colnames(df_train)[colnames(df_train) %in% useMarkers])
+
+```
+
+## Validation study for testing
+```{r}
+set.seed(1994)
+df_test <- fread('../../Study_3_2019/all_batches_processed_mg_10K.csv',
+              nThread = 7) %>% 
+  as.data.frame()
+
+df_test[, useMarkers]  <- cyCombine::transform_asinh(df_test[, useMarkers],
+                                                  markers = useMarkers, derand = F)
+
+colnames(df_test)[colnames(df_test) %in% useMarkers] <- gsub("_", "-", colnames(df_test)[colnames(df_test) %in% useMarkers])
+```
+
+# Scale training and testing data for deep learning
+```{r}
+useMarkers <- gsub("_", "-", useMarkers)
+allMarkers <- gsub("_", "-", allMarkers)
+
+preProcValues <- preProcess(df_train[, useMarkers], method = c("range"))
+
+df_train[, useMarkers] <- predict(preProcValues, df_train[, useMarkers])
+
+df_test[, useMarkers] <- predict(preProcValues, df_test[, useMarkers])
+```
  
+# Get the reference sample for training
+```{r}
+res_ind <- computeReferenceSample(df_train, useMarkers, N = 2)
+```
+
+# Get the training and validation samples for the VAE model
+```{r}
+train_dat <- df_train[which(df_train$sample_id %in% c(res_ind$topNSamples)), ]
+val_dat <- df_train[which(df_train$sample_id %in% c(res_ind$bottomNSamples)), ]
+```
+
+
+# Run the MMD-VAE on the training data
+```{r}
+batch_size = 32L
+vae_model <- trainVAEModel(trainData = train_dat[, useMarkers], batchSize = batch_size, 
+                             useMarkers = useMarkers, epochs = 100, lambda = 0.01,
+                             valData = val_dat[, useMarkers])
+```
+
+# Use the trained VAE model to decode the training data
+```{r}
+train_decoded <- decodeSamples(newSamples = as.matrix(df_train[, useMarkers]), 
+                                vae = vae_model$vae)
+df_train_norm <- train_decoded[[1]]
+
+colnames(df_train_norm) <- useMarkers
+```
+
+# Use the trained VAE model to decode the testing data
+```{r, eval=T}
+test_decoded <- decodeSamples(newSamples = as.matrix(df_test[, useMarkers]), 
+                               vae = vae_model$vae)
+df_test_norm <- test_decoded[[1]]
+
+colnames(df_test_norm) <- useMarkers
+```
+
+
+# Create SCE object fort the training data
+```{r}
+sce_train_norm <- SingleCellExperiment(assays = list(norm = t(df_train_norm[, useMarkers])
+),
+colData = df_train %>% dplyr::select(-useMarkers))
+reducedDims(sce_train_norm) <- list(VAE=train_decoded$encoded %>%
+                                as.matrix() %>%
+                                as.data.frame())
+```
+
+# Create SCE object for the testing data
+```{r}
+sce_test_norm <- SingleCellExperiment(assays = list(norm = t(df_test_norm[, useMarkers])
+),
+colData = df_test %>% dplyr::select(-useMarkers))
+reducedDims(sce_test_norm) <- list(VAE=test_decoded$encoded %>%
+                                as.matrix() %>%
+                                as.data.frame())
+
+
+```
+
+## Use FuseSOM to cluster the normalised training data into 11 clusters
+```{r, eval=T}
+sce_train_norm$clusters_norm <- NULL
+nclust <- 11
+sce_train_norm <- runFuseSOM(sce_train_norm, numClusters = nclust, assay = 'norm', 
+                       verbose = FALSE, clusterCol = 'clusters_norm')
+```
+
+# Parse Clinical data for the training data
+```{r}
+clinicaldata <- colData(sce_train_norm) %>%
+  as.data.frame() %>%
+  dplyr::select(sample_id, Gensini, Gender, Age) %>%
+  distinct()
+clinicaldata$Gensini_bin <- factor(if_else(clinicaldata$Gensini > 0, 1, 0))
+```
+
+# Parse Clinical data for testing data
+```{r}
+
+clinicaldata_test <- colData(sce_test_norm) %>%
+  as.data.frame() %>%
+  dplyr::select(sample_id, Gensini_bin) %>%
+  distinct()
+```
+
+# Train cell type identification model using the training data
+We will be using the the embeddings from the VAE model to train a linear discriminant model to predict the clusters for the testing dat
+```{r}
+train_x <- reducedDim(sce_train_norm, type = "VAE") %>%
+  mutate(cellTypes = as.factor(sce_train_norm$clusters_norm))
+
+test_x <- reducedDim(sce_test_norm, type = "VAE")
+```
+
+## Fit the LDA model
+```{r}
+test_clusters <- trainCellTypeClassifier(trainX = train_x, 
+                                         testX = test_x, model = 'lda')
+
+sce_test_norm$clusters_norm <- test_clusters
+```
+
+# Compute training features
+## Logit of cell type proportions
+```{r}
+prop_logit <- computeFeatures(sce = sce_train_norm, featureType = 'prop', 
+                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
+                              logit = T, useMarkers = useMarkers)
+row_names <- rownames(prop_logit)
+condition <- factor(clinicaldata[match(row_names,clinicaldata$sample_id),
+                                      "Gensini_bin"])
+```
+
+## Means
+```{r, eval=T}
+markerMeanCellType <- computeFeatures(sce = sce_train_norm, featureType = 'mean', 
+                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
+                              logit = T, useMarkers = useMarkers)
+```
+
+
+# Compute features on test data
+## Logit of cell type proportions
+```{r}
+prop_test_logit <- computeFeatures(sce = sce_test_norm, featureType = 'prop', 
+                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
+                              logit = T, useMarkers = useMarkers)
+
+row_names_test <- rownames(prop_test_logit)
+condition_test <- factor(clinicaldata_test[match(row_names_test,clinicaldata_test$sample_id),
+                                      "Gensini_bin"])
+```
+
+## Means
+```{r, eval=T}
+markerMeanCellType_test <- computeFeatures(sce = sce_test_norm, featureType = 'mean', 
+                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
+                              logit = T, useMarkers = useMarkers)
+```
+
+
+# Generate grouping structures using the clusters
+```{r}
+trees <- generateTree(features = prop_logit, method = "ward")
+tree <- trees$tree
+order <- trees$order
+groups <- generateGroups(tree = tree, nClust = nclust, 
+                         proportions = prop_logit, means = markerMeanCellType)
+```
+
+# Process training and testing data
+## Training
+```{r}
+# Combine all input data matrices
+X_train <- cbind(prop_logit, markerMeanCellType) %>% 
+  as.matrix()
+  
+  # Scale the combined data
+scaleVals <- preProcess(X_train, method = c('scale'))
+X_train <- predict(scaleVals, X_train) %>%
+    as.matrix()
+  
+  # Extract response variable
+y_train <- as.numeric(levels(condition))[condition]
+```
+
+## Testing
+```{r}
+X_test <- cbind(prop_test_logit, markerMeanCellType_test) %>%
+  as.matrix()
+
+X_test <- predict(scaleVals, X_test) %>%
+    as.matrix()
+
+y_test <- as.numeric(levels(condition_test))[condition_test]
+```
+
+## Fit Overlap group lasso model on the training data
+```{r}
+fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups, 
+                penalty = 'grLasso', seed = 1994)
+```
+
+```{r}
+train_auc <- plotAUC(fit = fit$fit, xTest = X_train, yTest = y_train, title = "Study 3 - All AUC =")
+train_auc$plot
+```
+
+## Predict on test data
+```{r}
+test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, title = "Study 3 - All AUC =")
+test_auc$plot
+
+```
+
+# Visualise Resulting Tree
+```{r, fig.height=20, fig.width=40}
+visualiseModelTree(fit = fit$fit, tree = tree, type = "cluster",
+                   trainingData = X_train, title = "Unsupervised Clustering")
+```
