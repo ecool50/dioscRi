@@ -60,26 +60,33 @@ The dioscRi pipeline comprises several distinct yet interconnected steps, ensuri
 - **New Sample Classification**:
   - Patient-level predictions are generated for new samples, providing probabilities or classifications (e.g., healthy vs. diseased).
   - This final step enables the application of the model for clinical or experimental outcomes.
+  
+# BioHEART-CT - Background
+The **BioHEART-CT** cohort study, a prospective longitudinal study, profiled immune cell populations associated with coronary artery disease (CAD) using mass cytometry. The dataset includes discovery (111 samples, 6 batches) and validation cohorts (58 samples, 3 batches), with manual gating identifying 11 major and 81 minor cell populations. CAD severity was measured using the Gensini score, dichotomized into CAD+ (Gensini > 0) and CAD- (Gensini = 0). Predictive modeling on this dataset highlighted the association of T regulatory cells expressing markers like CCR2, CCR4, CD39, and HLA-DR with CAD.
+
+In this demonstration, we will utilize the dioscRi framework to model CAD status on this dataset, showcasing its ability to construct interpretable predictive models for high-dimensional cytometry data.
 
 # Load in required libraries
+First we need to load in the required libraries for the models we will be fitting
 ```{r}
 rm(list = ls())
 gc()
 suppressPackageStartupMessages({
     library(dioscRi)
-library(keras3)
-library(tidyverse)
-library(tensorflow)
-library(data.table)
-library(caret)
-library(SingleCellExperiment)
-library(FuseSOM)
+    library(keras3)
+    library(tidyverse)
+    library(tensorflow)
+    library(data.table)
+    library(caret)
+    library(SingleCellExperiment)
+    library(FuseSOM)
 })
 
 set_random_seed(1994)
 ```
 
 # Set the markers
+We will be using a subset of 27 markers used in the original manuscript for manual gating. 
 ```{r}
 useMarkers <- c('HLA_DR', 'CD3', 'CD4', 'CD8a', 'CD25', 'CD127', 'FoxP3', 'CD27',
                 'KLRG1', 'CD56', 'CD45RO', 'CD45RA', 'CD192_CCR2', 'CD194_CCR4',
@@ -98,64 +105,73 @@ allMarkers <- c('HLA_DR', 'CD3', 'CD4', 'CD8a', 'CD25', 'CD127', 'FoxP3', 'CD27'
 
 
 # Read in the datasets
-## Discovery study for training
+The discovery study will be used to for training and the validation study will be used for testing
 ```{r}
-# study 4
+# Discovery study
 set.seed(1994)
 df_train <- fread('../../raw_data/bioheart_ct_cytof_data_b4_mg.csv',
               nThread = 7) %>%
   as.data.frame()
+
+# Validation study
+df_test <- fread('../../Study_3_2019/all_batches_processed_mg_10K.csv',
+              nThread = 7) %>% 
+  as.data.frame()
 ```
 
 
-# Transform the training dataset using the arsinh function with cofactor of 5
+# Dataset transformation
+As is standard with cytometry data, the `arsinh` transformation will be applied.
+The arcsinh transformation is commonly used in cytometry data to manage its wide dynamic range and skewed distribution. It compresses large signal intensities while preserving low-intensity values and handles negative or near-zero values effectively, unlike logarithmic transformations. This transformation improves statistical analyses, such as clustering, and enhances visualization by clearly separating cell populations, ensuring consistency and interpretability across studies.
 ```{r}
+# the training data
 df_train[, useMarkers]  <- cyCombine::transform_asinh(df_train[, useMarkers], 
                                                 markers = useMarkers, derand = F)
 
 colnames(df_train)[colnames(df_train) %in% useMarkers] <- 
   gsub("_", "-", colnames(df_train)[colnames(df_train) %in% useMarkers])
 
-```
-
-## Validation study for testing
-```{r}
-set.seed(1994)
-df_test <- fread('../../Study_3_2019/all_batches_processed_mg_10K.csv',
-              nThread = 7) %>% 
-  as.data.frame()
-
+# the testing data
 df_test[, useMarkers]  <- cyCombine::transform_asinh(df_test[, useMarkers],
                                                   markers = useMarkers, derand = F)
+colnames(df_test)[colnames(df_test) %in% useMarkers] <- 
+  gsub("_", "-", colnames(df_test)[colnames(df_test) %in% useMarkers])
 
-colnames(df_test)[colnames(df_test) %in% useMarkers] <- gsub("_", "-", colnames(df_test)[colnames(df_test) %in% useMarkers])
-```
-
-# Scale training and testing data for deep learning
-```{r}
 useMarkers <- gsub("_", "-", useMarkers)
 allMarkers <- gsub("_", "-", allMarkers)
+```
 
+
+# Range transformation for the MMD-VAE model
+Before fitting the MMD-VAE deep learning model, we need to transform the range of the dataset to [0,1]. Doing so stabilises the model and speeds up convergence. To do this, a range transformer is trained using the training data and then applied to both the training and the testing data.  
+```{r}
+# train range transformer on the training data using the caret package
 preProcValues <- preProcess(df_train[, useMarkers], method = c("range"))
 
+# predict on the training data
 df_train[, useMarkers] <- predict(preProcValues, df_train[, useMarkers])
 
+# predict on the testing data
 df_test[, useMarkers] <- predict(preProcValues, df_test[, useMarkers])
 ```
  
-# Get the reference sample for training
-```{r}
-res_ind <- computeReferenceSample(df_train, useMarkers, N = 2)
-```
+# Get the reference samples for training and validating the MMD-VAE model
+To further speed up training of the MMD-VAE model, we select a set of $k$ samples which will be used for training. To select these samples, we firt compute the covariance matrix for each sample, next the pairwise frobenius norms of the covariances for all samples are computed. Finally the top $k$ samples are selected by averaging all the frobenious norms for each sample and returning the top $k$ samples with the minimum average. We set $k$ to $2$ in our analyses. 
 
-# Get the training and validation samples for the VAE model
 ```{r}
+# compute the reference samples
+res_ind <- computeReferenceSample(df_train, useMarkers, N = 2)
+
+# get the training samples
 train_dat <- df_train[which(df_train$sample_id %in% c(res_ind$topNSamples)), ]
+
+# get the validation samples
 val_dat <- df_train[which(df_train$sample_id %in% c(res_ind$bottomNSamples)), ]
 ```
 
 
-# Run the MMD-VAE on the training data
+# Fit the MMD-VAE model
+For training a transferable normalisation model, we use the Maximum Mean Discrepancy Variational Autoencoder (MMD-VAE) which uses the MMD loss instead of the KL-divergence loss. For added regularisation, we set $\lambda = 0.01$. The model is fit with batch size of $32$ over $100$ epochs.
 ```{r}
 batch_size = 32L
 vae_model <- trainVAEModel(trainData = train_dat[, useMarkers], batchSize = batch_size, 
@@ -163,17 +179,16 @@ vae_model <- trainVAEModel(trainData = train_dat[, useMarkers], batchSize = batc
                              valData = val_dat[, useMarkers])
 ```
 
-# Use the trained VAE model to decode the training data
+# Normalise both the training and testing using the fitted VAE model
+After training the normalisation model, both the training and the testind data are normalised using the trained model
 ```{r}
 train_decoded <- decodeSamples(newSamples = as.matrix(df_train[, useMarkers]), 
                                 vae = vae_model$vae)
-df_train_norm <- train_decoded[[1]]
+df_norm <- train_decoded[[1]]
 
-colnames(df_train_norm) <- useMarkers
-```
+colnames(df_norm) <- useMarkers
 
-# Use the trained VAE model to decode the testing data
-```{r, eval=T}
+
 test_decoded <- decodeSamples(newSamples = as.matrix(df_test[, useMarkers]), 
                                vae = vae_model$vae)
 df_test_norm <- test_decoded[[1]]
@@ -182,166 +197,380 @@ colnames(df_test_norm) <- useMarkers
 ```
 
 
-# Create SCE object fort the training data
+# Create SCE objects
+Before performing downstream analyses, we first compile both the training and testing datasets into a `SingleCellExperiment`(SCE) object. We also add the embeddings from the vae model into the SCE object for later use. 
 ```{r}
-sce_train_norm <- SingleCellExperiment(assays = list(norm = t(df_train_norm[, useMarkers])
+# the training data
+sce_train <- SingleCellExperiment(assays = list(norm = t(df_norm[, useMarkers])
 ),
 colData = df_train %>% dplyr::select(-useMarkers))
-reducedDims(sce_train_norm) <- list(VAE=train_decoded$encoded %>%
+## add the vae embeddings
+reducedDims(sce_train) <- list(VAE=train_decoded$encoded %>%
                                 as.matrix() %>%
                                 as.data.frame())
-```
 
-# Create SCE object for the testing data
-```{r}
-sce_test_norm <- SingleCellExperiment(assays = list(norm = t(df_test_norm[, useMarkers])
+# testing data
+sce_test <- SingleCellExperiment(assays = list(norm = t(df_test_norm[, useMarkers])
 ),
 colData = df_test %>% dplyr::select(-useMarkers))
-reducedDims(sce_test_norm) <- list(VAE=test_decoded$encoded %>%
+## add the vae embeddings
+reducedDims(sce_test) <- list(VAE=test_decoded$encoded %>%
                                 as.matrix() %>%
                                 as.data.frame())
-
-
 ```
 
-## Use FuseSOM to cluster the normalised training data into 11 clusters
+
+# Cluster the training data
+Next, the normalised training data is clustered into $k=11$ clusters using the `FuseSOM` algorithm. The `FuseSOM` algorithm combines multiple similarity metrics through multiview ensemble learning and hierarchical clustering to create cell types.
 ```{r, eval=T}
-sce_train_norm$clusters_norm <- NULL
+sce_train$clusters_norm <- NULL
 nclust <- 11
-sce_train_norm <- runFuseSOM(sce_train_norm, numClusters = nclust, assay = 'norm', 
+sce_train <- runFuseSOM(sce_train, numClusters = nclust, assay = 'norm', 
                        verbose = FALSE, clusterCol = 'clusters_norm')
 ```
 
-# Parse Clinical data for the training data
+Since the training dataset has manual gating cell types, we can see how well our clustering matches the manual gates using the `Adjusted Rand Index` (ARI) score. We obtain a score of $0.812$ which shows good concordance.
+```{r, eval=T}
+aricode::ARI(sce_train$clusters_norm, sce_train$mg_cell_type_distinct)
+```
+
+# Annotate clustering
+## The resulting clusters were expertly annotated using marker expressions so we can update the clustering
+```{r, eval=T}
+sce_train$clusters_norm <- recode_factor(sce_train$clusters_norm,
+                                 "cluster_1" = "NK",
+                                 "cluster_2" = "Not Naive CD8+ T cells", 
+                                 "cluster_3" = "Naive CD8+ T cells",
+                                 "cluster_4" = "NK/Mixed", 
+                                 "cluster_5" = "Naive B Cells", 
+                                 "cluster_6" = "CD4+ Tconv",
+                                 "cluster_7" = "Memory B cells",
+                                 "cluster_8" = "16+ monocytes",
+                                 "cluster_9" = "CD141+ DC/pDCs",
+                                 "cluster_10" = "14+ monocytes",
+                                 "cluster_11" = "CD4+ Treg" 
+                                 )
+```
+
+# Train cell type identification model
+Before doing patient classification, we need to compute the clusters for the testing data. To do so, we use the clusters from the training data to train a `Linear Discriminant Analysis` (LDA) model using the vae embeddings from earlier. The `caret` package is used to fit this mode
 ```{r}
-clinicaldata <- colData(sce_train_norm) %>%
+# set up the training data
+train_x <- reducedDim(sce_train, type = "VAE") %>%
+  mutate(cellTypes = as.factor(sce_train$clusters_norm))
+
+# setup th testing data
+test_x <- reducedDim(sce_test, type = "VAE")
+
+# train the model
+df_test_clusters <- trainCellTypeClassifier(trainX = train_x, testX = test_x, model = 'lda')
+
+# update the clusters for the test data
+sce_test$clusters_norm <- df_test_clusters
+```
+
+
+# Set up clinical information 
+Next, we setup the clinical information that will be used in the patient prediction model. For the BioHEART-CT dataset, we are predicting `CAD` status via `Gensini` which is a continous variable. In order to fit the prediction model, we binarise it to $Gensini > 0$ and $Gensini = 0$.
+```{r}
+# The training data
+clinicaldata_train <- colData(sce_train) %>%
   as.data.frame() %>%
   dplyr::select(sample_id, Gensini, Gender, Age) %>%
   distinct()
-clinicaldata$Gensini_bin <- factor(if_else(clinicaldata$Gensini > 0, 1, 0))
-```
+# binarise the gensini variable
+clinicaldata_train$Gensini_bin <- factor(if_else(clinicaldata_train$Gensini > 0, 1, 0))
 
-# Parse Clinical data for testing data
-```{r}
-
-clinicaldata_test <- colData(sce_test_norm) %>%
+# The testing data - gensini is already binarised
+clinicaldata_test <- colData(sce_test) %>%
   as.data.frame() %>%
   dplyr::select(sample_id, Gensini_bin) %>%
   distinct()
 ```
 
-# Train cell type identification model using the training data
-We will be using the the embeddings from the VAE model to train a linear discriminant model to predict the clusters for the testing dat
+
+# Compute feature sets
+Next, the logit of cell type proportions in each sample and the marker means per cell type in each sample are computed. Both of these features with be used to train a model predict `CAD` status.
+## Training data
 ```{r}
-train_x <- reducedDim(sce_train_norm, type = "VAE") %>%
-  mutate(cellTypes = as.factor(sce_train_norm$clusters_norm))
-
-test_x <- reducedDim(sce_test_norm, type = "VAE")
-```
-
-## Fit the LDA model
-```{r}
-test_clusters <- trainCellTypeClassifier(trainX = train_x, 
-                                         testX = test_x, model = 'lda')
-
-sce_test_norm$clusters_norm <- test_clusters
-```
-
-# Compute training features
-## Logit of cell type proportions
-```{r}
-prop_logit <- computeFeatures(sce = sce_train_norm, featureType = 'prop', 
+# compute logit of proportions for the training set
+prop_logit_train <- computeFeatures(sce = sce_train, featureType = 'prop', 
                               cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
                               logit = T, useMarkers = useMarkers)
-row_names <- rownames(prop_logit)
-condition <- factor(clinicaldata[match(row_names,clinicaldata$sample_id),
+
+# compute the marker means per cell type for the training set
+markerMeanCellType_train <- computeFeatures(sce = sce_train, featureType = 'mean', 
+                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
+                              logit = T, useMarkers = useMarkers)
+
+# setup response as well
+row_names_train <- rownames(prop_logit_train)
+y_train <- factor(clinicaldata_train[match(row_names_train,clinicaldata_train$sample_id),
                                       "Gensini_bin"])
+y_train <- as.numeric(levels(y_train))[y_train]
 ```
 
-## Means
-```{r, eval=T}
-markerMeanCellType <- computeFeatures(sce = sce_train_norm, featureType = 'mean', 
-                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
-```
-
-
-# Compute features on test data
-## Logit of cell type proportions
+## Testing data
 ```{r}
-prop_test_logit <- computeFeatures(sce = sce_test_norm, featureType = 'prop', 
+# compute logit of proportions for the testing set
+prop_logit_test <- computeFeatures(sce = sce_test, featureType = 'prop', 
                               cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
                               logit = T, useMarkers = useMarkers)
 
-row_names_test <- rownames(prop_test_logit)
-condition_test <- factor(clinicaldata_test[match(row_names_test,clinicaldata_test$sample_id),
+# compute the marker means per cell type for the testing set
+markerMeanCellType_test <- computeFeatures(sce = sce_test, featureType = 'mean', 
+                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
+                              logit = T, useMarkers = useMarkers)
+
+# setup response as well
+row_names_test <- rownames(prop_logit_test)
+y_test <- factor(clinicaldata_test[match(row_names_test,clinicaldata_test$sample_id),
                                       "Gensini_bin"])
-```
-
-## Means
-```{r, eval=T}
-markerMeanCellType_test <- computeFeatures(sce = sce_test_norm, featureType = 'mean', 
-                              cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+y_test <- as.numeric(levels(y_test))[y_test]
 ```
 
 
-# Generate grouping structures using the clusters
+# Generate grouping structures
+The final input to overlapping group lasso model is the hierarchical structure of the cell type proportions . To generate this, we run hierarchical clustering on the logit proportions using ward linkage function on the correlation distances. The resulting tree structure is then traversed and all possible groupings of cells types in the tree are turned. This is then combined with the marker means per cell type. Note that each element in the marker means per cell type is in a group 1.
 ```{r}
-trees <- generateTree(features = prop_logit, method = "ward")
+trees <- generateTree(features = prop_logit_train, method = "ward")
 tree <- trees$tree
 order <- trees$order
 groups <- generateGroups(tree = tree, nClust = nclust, 
-                         proportions = prop_logit, means = markerMeanCellType)
+                         proportions = prop_logit_train, means = markerMeanCellType_train)
+head(groups, 30)
 ```
 
 # Process training and testing data
-## Training
+Now that we have the features and the grouping structure generated, we can combine the features into a matrix before passing it to overlapping group lasso model for training.
+## Training data
 ```{r}
-# Combine all input data matrices
-X_train <- cbind(prop_logit, markerMeanCellType) %>% 
+# Combine logit proporitons and marker means per cell type
+X_train <- cbind(prop_logit_train, markerMeanCellType_train) %>% 
   as.matrix()
   
-  # Scale the combined data
+# Scale the combined data so coefficients are comparable
 scaleVals <- preProcess(X_train, method = c('scale'))
 X_train <- predict(scaleVals, X_train) %>%
     as.matrix()
-  
-  # Extract response variable
-y_train <- as.numeric(levels(condition))[condition]
 ```
 
-## Testing
+## Testing data
 ```{r}
-X_test <- cbind(prop_test_logit, markerMeanCellType_test) %>%
+# Combine logit proporitons and marker means per cell type
+X_test <- cbind(prop_logit_test, markerMeanCellType_test) %>%
   as.matrix()
 
+# scale using scaling model from training set
 X_test <- predict(scaleVals, X_test) %>%
     as.matrix()
-
-y_test <- as.numeric(levels(condition_test))[condition_test]
 ```
 
-## Fit Overlap group lasso model on the training data
+# Fit Overlap model
+Finally, everything is ready for us to fit the prediction model. The model used is the overlapping group lasso that is described [here](https://pbreheny.github.io/grpreg/index.html). The model was originally designed for group based lasso. However, we have modified it to be applied to overlapping groups based on [here](https://pmc.ncbi.nlm.nih.gov/articles/PMC5026200/). To fit the model, we pass the features, response, and grouping structure. As with the standard lasso model, we optimize the values of $\alpha$ and $\lambda$ simultaneously using the `Deviance` criterion. For our models, we generate $10$ values between $[0,1]$ for $\alpha$ and $1000$ values between $[0.05, 1]$ for $\lambda$ the optimal value for both parameters is selected using `elbow` method on the deviances.
 ```{r}
+# fit the model
 fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups, 
                 penalty = 'grLasso', seed = 1994)
 ```
 
+# Assess model performace
+To assess how well the model is performing, we use the ROC-AUC curve. We observe an $AUC = 0.9$ for training and $AUC = 0.82$ for testing. 
+
+## Training AUC {.tabset}
 ```{r}
 train_auc <- plotAUC(fit = fit$fit, xTest = X_train, yTest = y_train, title = "Study 3 - All AUC =")
 train_auc$plot
 ```
 
-## Predict on test data
+## Testing AUC {.tabset}
 ```{r}
 test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, title = "Study 3 - All AUC =")
 test_auc$plot
 
 ```
 
-# Visualise Resulting Tree
-```{r, fig.height=20, fig.width=40}
-visualiseModelTree(fit = fit$fit, tree = tree, type = "cluster",
+Note that the testing AUC score shows an improvement over the previously reported score of $0.75$.
+
+# Visualise and assess  model outputs
+We can look at which features are driving my model's performance by looking at the feature tree which combines the hierarchy of the cell type proportions with marker means per cell type. For the hierarchy, the color of the node represents the value of the coefficient in the final model. For example, we see that there is a difference in proportions between CAD+ and CAD- for `Naive CD8+ T cells` with CAD- samples having a higher proportions (negative coefficients). Similar interpretation can be applied to the marker means per cell type. For example, both `FoxP3` and `CD194-CCR4` have positive coefficients in the `CD4+ Tregs` cell type indicating that these markers are expressed higher in `CD4+ Tregs` for CAD+ samples compared to CAD- samples. 
+```{r, fig.height=10, fig.width=12}
+visualiseModelTree(fit = fit$fit, tree = tree, type = "MG",
                    trainingData = X_train, title = "Unsupervised Clustering")
 ```
+
+Next we can look at some distribution plots for the features with non-zero coeffients in the model to see how they differ between both classes. We can also assess their statistical significance.
+
+## Means {.tabset}
+```{r, eval=T}
+# CCR2 (OR 1.12), CCR4 (OR 1.08), CD38 and CD45RO (OR 1.13), HLA-DR (OR 1.06), and Ki67 (1.22)
+stats_mean <- getSigFeatures(fit$fit, type = 'mean',  
+                         mean = markerMeanCellType_train, clinicalData = clinicaldata_train, 
+                         outcome = "Gensini_bin")
+
+sigFeatures <- stats_mean$sigFeatures
+stats <- stats_mean$stats
+
+```
+
+```{r, fig.height=10, fig.width=16}
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin")
+
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", 
+                type = "boxplots") + 
+    xlab("Gensini bin")
+```
+
+## Proportions {.tabset}
+```{r, eval=T, fig.height=10, fig.width=16}
+# CCR2 (OR 1.12), CCR4 (OR 1.08), CD38 and CD45RO (OR 1.13), HLA-DR (OR 1.06), and Ki67 (1.22)
+stats_prop <- getSigFeatures(fit$fit, type = 'prop',  prop = prop_logit_train,
+                         mean = markerMeanCellType_train, clinicalData = clinicaldata_train, 
+                         outcome = "Gensini_bin")
+
+sigFeatures <- stats_prop$sigFeatures
+stats <- stats_prop$stats
+```
+
+```{r}
+# distribution plot
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin")
+
+# boxplot
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", 
+                type = "boxplots") + 
+    xlab("Gensini bin")
+```
+None of the non-zero marker means per cell type features are significant after adjusting for multiple testing. However, for the proportion model, both features returned by the model have statistically signficant differences between CAD status.
+
+# Look at just the proportions
+We can repeat the same experiment, but just looking at the proportions. This is done by fitting the overlapping group lasso model to the just logit of the cell type proportions. To do this, we just modify the training and testing inputs, as well as the grouping structure.
+
+## Set up the training and testing data
+```{r}
+# training data
+X_train <- prop_logit_train %>%
+  as.matrix()
+
+# testing data
+X_test <- prop_logit_test %>%
+  as.matrix()
+```
+
+## Set up the groups
+The groups will just be from the hierarchical clustering
+```{r}
+groups <- generateGroups(tree = tree, nClust = 11, proportions = prop_logit_train,
+                         means = markerMeanCellType_train, type = "prop")
+print(groups)
+```
+
+## Fit Overlap model
+Again fit the overlap model similarly as before
+```{r}
+groups <- lapply(groups, sort)
+fit <- fitModel(xTrain = X_train, yTrain = y_train,
+                groups = groups, penalty = "grLasso", seed = 1994)
+```
+
+## Predict on test data
+Using only the proportions as features, we get an $AUC = 0.77$ which is a decent score, but clearly underscores the benefits of combining the proportions with the marker means.
+```{r}
+test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, 
+                    title = "Test - Proportions AUC =")
+test_auc$plot
+```
+
+## Visualise and assess  model outputs
+Similar to the full model, we see similar proportions with non-zero coefficients. We also see a couple of new features including the combination of `NK` and `NK` mixed cells having a higher proportions in CAD+ samples. The overlapping group lasso is able to identify the relevance of the combination of these two cell types even though individually, the are not relevant to the model.
+```{r, fig.height=10, fig.width=12}
+visualiseModelTree(fit = fit$fit, tree = tree, type = "MG", 
+                   trainingData = X_train, heatmap = FALSE)
+```
+
+Similarly, we can look at the distributions of these features and assess their statistical significance.
+```{r, eval=T, fig.height=10, fig.width=16}
+# CCR2 (OR 1.12), CCR4 (OR 1.08), CD38 and CD45RO (OR 1.13), HLA-DR (OR 1.06), and Ki67 (1.22)
+stats_prop <- getSigFeatures(fit$fit, type = 'prop',  prop = prop_logit_train,
+                         mean = markerMeanCellType_train, clinicalData = clinicaldata_train, 
+                         outcome = "Gensini_bin")
+
+sigFeatures <- stats_prop$sigFeatures
+stats <- stats_prop$stats
+
+```
+
+```{r, fig.height=16, fig.width=20}
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin")
+
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", type = "boxplots")
+```
+Similar to the full model, only the `CD4+ Tregs` and the `Naive CD8+ T cells` have statistically significant proportions between CAD status.
+
+# Look at just the means
+We can perform the same experiment for just the marker means per cell type. This is done by fitting the overlapping group lasso model to the just the marker means per cell type. To do this, we just modify the training and testing inputs, as well as the grouping structure.
+
+## Set up the training and testing data
+```{r}
+# Combine all input data matrices
+X_train <- markerMeanCellType_train %>%
+  as.matrix()
+
+X_test <- markerMeanCellType_test %>%
+  as.matrix()
+```
+
+## Set up the grouping structure
+Since this is the marker means per cell type, each feature will be in it's own group.
+```{r}
+groups <- generateGroups(tree = tree, nClust = 11, proportions = prop_logit_train,
+                         means = markerMeanCellType_train, type = "mean")
+head(groups)
+```
+
+## Fit Overlap model
+Fit the model similar to before
+```{r}
+fit <- fitModel(xTrain = X_train, yTrain = y_train,
+                groups = groups, penalty = "grLasso", seed = 1994)
+```
+
+## Predict on test data
+Using only the marker means per cell type as features, we get an $AUC = 0.72$ which is less than just the proportion model but is still a decent score. Again, this clearly underscores the benefits of combining the proportions with the marker means.
+```{r}
+test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, 
+                    title = "Test - Marker means per cell type AUC =")
+test_auc$plot
+```
+
+## Visualise and assess  model outputs
+Similar to the full model, we see similar marker means in cell types with non-zero coefficients. However, the magnitude of the coefficients have reduced (CD4+ Treg). This could imply that the cell type proportions provide more weighting to marker means per cell type.
+```{r, fig.height=10, fig.width=12}
+plotHeatmap(fit$fit, order = order, type = "MG")
+```
+
+Lastly, we can look at the distributions of these features and assess their statistical significance.
+```{r, eval=T}
+# CCR2 (OR 1.12), CCR4 (OR 1.08), CD38 and CD45RO (OR 1.13), HLA-DR (OR 1.06), and Ki67 (1.22)
+stats_mean <- getSigFeatures(fit$fit, type = 'mean',  
+                         mean = markerMeanCellType_train, clinicalData = clinicaldata_train, 
+                         outcome = "Gensini_bin")
+
+sigFeatures <- stats_mean$sigFeatures
+stats <- stats_mean$stats
+```
+
+```{r, fig.height=16, fig.width=20}
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", )
+
+plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", 
+                type = "boxplots") + 
+    xlab("Gensini bin")
+```
+As with the full model, none of the features have a statistically signicant difference between CAD status after adjusting for multiple testing. We do however see a reduction in overall magnitudes of various p-values.
+
+# Session Info
+```{r}
+sessionInfo()
+```
+
