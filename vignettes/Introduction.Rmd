@@ -61,6 +61,12 @@ The dioscRi pipeline comprises several distinct yet interconnected steps, ensuri
   - Patient-level predictions are generated for new samples, providing probabilities or classifications (e.g., healthy vs. diseased).
   - This final step enables the application of the model for clinical or experimental outcomes.
   
+- **Notes**:
+  - Due to the random nature of deep learning models, the results presented here will most likely differ from what is presented in the manuscript.
+  - Some of the packages used at the time of development may have new versions that may change some computations.
+    - This is most relevant for `Keras` and `Tensorflow`
+  - For the fully reproducible version, the saved `sce` objects are provided in anothe vignette.
+  
 # BioHEART-CT - Background
 The **BioHEART-CT** cohort study, a prospective longitudinal study, profiled immune cell populations associated with coronary artery disease (CAD) using mass cytometry. The dataset includes discovery (111 samples, 6 batches) and validation cohorts (58 samples, 3 batches), with manual gating identifying 11 major and 81 minor cell populations. CAD severity was measured using the Gensini score, dichotomized into CAD+ (Gensini > 0) and CAD- (Gensini = 0). Predictive modeling on this dataset highlighted the association of T regulatory cells expressing markers like CCR2, CCR4, CD39, and HLA-DR with CAD.
 
@@ -229,27 +235,8 @@ sce_train <- runFuseSOM(sce_train, numClusters = nclust, assay = 'norm',
                        verbose = FALSE, clusterCol = 'clusters_norm')
 ```
 
-Since the training dataset has manual gating cell types, we can see how well our clustering matches the manual gates using the `Adjusted Rand Index` (ARI) score. We obtain a score of $0.812$ which shows good concordance.
 ```{r, eval=T}
 aricode::ARI(sce_train$clusters_norm, sce_train$mg_cell_type_distinct)
-```
-
-# Annotate clustering
-## The resulting clusters were expertly annotated using marker expressions so we can update the clustering
-```{r, eval=T}
-sce_train$clusters_norm <- recode_factor(sce_train$clusters_norm,
-                                 "cluster_1" = "NK",
-                                 "cluster_2" = "Not Naive CD8+ T cells", 
-                                 "cluster_3" = "Naive CD8+ T cells",
-                                 "cluster_4" = "NK/Mixed", 
-                                 "cluster_5" = "Naive B Cells", 
-                                 "cluster_6" = "CD4+ Tconv",
-                                 "cluster_7" = "Memory B cells",
-                                 "cluster_8" = "16+ monocytes",
-                                 "cluster_9" = "CD141+ DC/pDCs",
-                                 "cluster_10" = "14+ monocytes",
-                                 "cluster_11" = "CD4+ Treg" 
-                                 )
 ```
 
 # Train cell type identification model
@@ -375,7 +362,7 @@ fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups,
 ```
 
 # Assess model performace
-To assess how well the model is performing, we use the ROC-AUC curve. We observe an $AUC = 0.9$ for training and $AUC = 0.82$ for testing. 
+To assess how well the model is performing, we use the ROC-AUC curve.
 
 ## Training AUC {.tabset}
 ```{r}
@@ -390,12 +377,11 @@ test_auc$plot
 
 ```
 
-Note that the testing AUC score shows an improvement over the previously reported score of $0.75$.
 
 # Visualise and assess  model outputs
-We can look at which features are driving my model's performance by looking at the feature tree which combines the hierarchy of the cell type proportions with marker means per cell type. For the hierarchy, the color of the node represents the value of the coefficient in the final model. For example, we see that there is a difference in proportions between CAD+ and CAD- for `Naive CD8+ T cells` with CAD- samples having a higher proportions (negative coefficients). Similar interpretation can be applied to the marker means per cell type. For example, both `FoxP3` and `CD194-CCR4` have positive coefficients in the `CD4+ Tregs` cell type indicating that these markers are expressed higher in `CD4+ Tregs` for CAD+ samples compared to CAD- samples. 
+We can look at which features are driving my model's performance by looking at the feature tree which combines the hierarchy of the cell type proportions with marker means per cell type. For the hierarchy, the color of the node represents the value of the coefficient in the final model.
 ```{r, fig.height=10, fig.width=12}
-visualiseModelTree(fit = fit$fit, tree = tree, type = "MG",
+visualiseModelTree(fit = fit$fit, tree = tree, type = "cluster",
                    trainingData = X_train, title = "Unsupervised Clustering")
 ```
 
@@ -474,7 +460,6 @@ fit <- fitModel(xTrain = X_train, yTrain = y_train,
 ```
 
 ## Predict on test data
-Using only the proportions as features, we get an $AUC = 0.77$ which is a decent score, but clearly underscores the benefits of combining the proportions with the marker means.
 ```{r}
 test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, 
                     title = "Test - Proportions AUC =")
@@ -482,9 +467,8 @@ test_auc$plot
 ```
 
 ## Visualise and assess  model outputs
-Similar to the full model, we see similar proportions with non-zero coefficients. We also see a couple of new features including the combination of `NK` and `NK` mixed cells having a higher proportions in CAD+ samples. The overlapping group lasso is able to identify the relevance of the combination of these two cell types even though individually, the are not relevant to the model.
 ```{r, fig.height=10, fig.width=12}
-visualiseModelTree(fit = fit$fit, tree = tree, type = "MG", 
+visualiseModelTree(fit = fit$fit, tree = tree, type = "cluster", 
                    trainingData = X_train, heatmap = FALSE)
 ```
 
@@ -505,7 +489,6 @@ plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin
 
 plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", type = "boxplots")
 ```
-Similar to the full model, only the `CD4+ Tregs` and the `Naive CD8+ T cells` have statistically significant proportions between CAD status.
 
 # Look at just the means
 We can perform the same experiment for just the marker means per cell type. This is done by fitting the overlapping group lasso model to the just the marker means per cell type. To do this, we just modify the training and testing inputs, as well as the grouping structure.
@@ -536,7 +519,6 @@ fit <- fitModel(xTrain = X_train, yTrain = y_train,
 ```
 
 ## Predict on test data
-Using only the marker means per cell type as features, we get an $AUC = 0.72$ which is less than just the proportion model but is still a decent score. Again, this clearly underscores the benefits of combining the proportions with the marker means.
 ```{r}
 test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, 
                     title = "Test - Marker means per cell type AUC =")
@@ -544,9 +526,9 @@ test_auc$plot
 ```
 
 ## Visualise and assess  model outputs
-Similar to the full model, we see similar marker means in cell types with non-zero coefficients. However, the magnitude of the coefficients have reduced (CD4+ Treg). This could imply that the cell type proportions provide more weighting to marker means per cell type.
+Similar to the full model, we see similar marker means in cell types with non-zero coefficients.
 ```{r, fig.height=10, fig.width=12}
-plotHeatmap(fit$fit, order = order, type = "MG")
+plotHeatmap(fit$fit, order = order, type = "cluster")
 ```
 
 Lastly, we can look at the distributions of these features and assess their statistical significance.
@@ -567,7 +549,7 @@ plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin
                 type = "boxplots") + 
     xlab("Gensini bin")
 ```
-As with the full model, none of the features have a statistically signicant difference between CAD status after adjusting for multiple testing. We do however see a reduction in overall magnitudes of various p-values.
+As with the full model, none of the features have a statistically significant difference between CAD status after adjusting for multiple testing. We do however see a reduction in overall magnitudes of various p-values.
 
 # Session Info
 ```{r}
