@@ -3,12 +3,7 @@ dioscRi
 A deep learning framework that combines an `MMD-VAE` with hierarchical `Group-Lasso` for clinical prediction
 in `high parameter cytometry assays`.
 
-<iframe
-  src="https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.pdf"
-  width="1000"
-  height="500"
-  style="border: none;"
-></iframe>
+<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.jpg align="middle" height="500" width="1000">
 
 Overview
 --------
