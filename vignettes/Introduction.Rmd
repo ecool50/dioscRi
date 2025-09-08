@@ -31,7 +31,7 @@ library(dioscRi)
 
 The dioscRi pipeline comprises several distinct yet interconnected steps, ensuring a smooth analytical workflow for feature identification and downstream interpretation:
 
-<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.png align="middle" height="400" width="1200">
+<img src=https://raw.githubusercontent.com/ecool50/dioscRi/main/inst/dioscRi_overview.jpg align="middle" height="400" width="1200">
 
 ## Summary of the **dioscRi** Pipeline
 
