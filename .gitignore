@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+inst/doc
+inst/.DS_Store
+dioscRi.Rproj
