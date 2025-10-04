@@ -16,3 +16,13 @@ contained in each node
 \description{
 findChildren
 }
+\examples{
+# Load sample data
+data(sample_tree)
+
+# Apply findChildren to tree
+tree_with_children <- findChildren(sample_tree$tree)
+
+# Check clusters
+print(tree_with_children$data$clusters)
+}

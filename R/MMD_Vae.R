@@ -17,6 +17,7 @@
 #'   by summing contributions from IMQ kernels computed at multiple scales.
 #' @importFrom tensorflow tf
 #' @export
+#' @noRd
 mmdPenalty <- function(pz, qz, batch_size = 32L,
                         sigmaZ = 1., zDim = 16L){
     
@@ -45,8 +46,8 @@ mmdPenalty <- function(pz, qz, batch_size = 32L,
     distances <- normsQz + tf$transpose(normsPz) - 2. * dotProds
     
     cBase <- tf$constant(2. * zDim * sigmaZ)
-    stat = tf$constant(0.)
-    nf = tf$cast(batchSize, dtype=tf$float32)
+    stat <- tf$constant(0.)
+    nf <- tf$cast(batchSize, dtype=tf$float32)
     
     scales <- c(0.1, 0.2, 0.5, 1., 2., 5., 10.)
     for (scale in scales) {
@@ -73,6 +74,7 @@ mmdPenalty <- function(pz, qz, batch_size = 32L,
 #' @return Tensor containing the RBF kernel matrix.
 #' @importFrom tensorflow tf
 #' @export
+#' @noRd
 computeKernel <- function(x, y) {
     xSize <- tf$shape(x)[1]
     ySize <- tf$shape(y)[1]
@@ -94,6 +96,7 @@ computeKernel <- function(x, y) {
 #' @return Tensor; scalar MMD loss.
 #' @importFrom tensorflow tf
 #' @export
+#' @noRd
 computeMMD <- function(x, y, sigmaSqr = 1.0) {
     xKernel <- computeKernel(x, x)
     yKernel <- computeKernel(y, y)
@@ -118,6 +121,48 @@ computeMMD <- function(x, y, sigmaSqr = 1.0) {
 #' @importFrom tensorflow tf set_random_seed
 #' @importFrom keras3 layer_input layer_dense keras_model new_model_class
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_cytof_data)
+#' data(sample_markers)
+#' 
+#' # First compute reference samples for optimal training/validation split
+#' ref_samples <- computeReferenceSample(
+#'   data = sample_cytof_data,
+#'   markers = sample_markers,
+#'   sampleCol = "sample_id",
+#'   N = 2
+#' )
+#' 
+#' # Use top samples (most representative) for training
+#' train_data <- sample_cytof_data[
+#'   sample_cytof_data$sample_id %in% ref_samples$topNSamples,
+#'   sample_markers
+#' ]
+#' 
+#' # Use bottom samples (most distinct) for validation
+#' val_data <- sample_cytof_data[
+#'   sample_cytof_data$sample_id %in% ref_samples$bottomNSamples,
+#'   sample_markers
+#' ]
+#' 
+#' # Train VAE model with optimal data split
+#' vae_model <- trainVAEModel(
+#'   trainData = train_data,
+#'   useMarkers = sample_markers,
+#'   epochs = 30,
+#'   latentDim = 2,
+#'   hiddenSizes = c(4, 3),
+#'   lambda = 0.01,
+#'   valData = val_data,
+#'   originalDim = length(sample_markers),
+#'   batchSize = 32,
+#'   seed = 1994
+#' )
+#' 
+#' # Access components
+#' encoder <- vae_model$encoder
+#' vae <- vae_model$vae
 trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, seed = 1994,
                           lambda = 0.1, valData, originalDim = 27L, batchSize = 16,
                           hiddenSizes = NULL) {
@@ -271,6 +316,27 @@ trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, 
 #' @return List with decoded samples and encoded latent representations.
 #' @importFrom tensorflow tf
 #' @export
+#' @examples
+#' # Assuming vae_model is already trained (from previous example)
+#' data(sample_cytof_data)
+#' data(sample_markers)
+#' 
+#' # Normalize new samples
+#' new_data <- sample_cytof_data[1:100, sample_markers]
+#' 
+#' normalized <- decodeSamples(
+#'   newSamples = as.matrix(new_data),
+#'   vae = vae_model$vae,
+#'   latentDim = 5,
+#'   batchSize = 32
+#' )
+#' 
+#' # Access results
+#' decoded_data <- normalized$decoded
+#' latent_rep <- normalized$encoded
+#' 
+#' dim(decoded_data)
+#' dim(latent_rep)
 decodeSamples <- function(newSamples, vae, latentDim = 16L, batchSize = 32L) {
     tensorflow::set_random_seed(seed = 1994)
     zMean <- predict(vae$encoder, newSamples)

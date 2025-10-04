@@ -10,9 +10,9 @@ grpregOverlap <- function(X, y, group,
                           returnOverlap = FALSE,
                           ...) {
     # Error checking
-    if (is.matrix(X)) {
+    if (!is(X, "matrix")) {
         tmp <- try(X <- as.matrix(X), silent = TRUE)
-        if (class(tmp)[1] == "try-error") {
+        if (inherits(tmp, "try-error")) {
             stop("X must be a matrix or able to be coerced to a matrix")
         }
     }
@@ -20,7 +20,7 @@ grpregOverlap <- function(X, y, group,
     
     incid.mat <- incidenceMatrix(X, group) # group membership incidence matrix
     over.mat <- over.temp <- Matrix::Matrix(incid.mat %*% Matrix::t(incid.mat)) # overlap matrix
-    grp.vec <- rep(1:nrow(over.mat), times = Matrix::diag(over.mat)) # group index vector
+    grp.vec <- rep(seq_len(nrow(over.mat)), times = Matrix::diag(over.mat)) # group index vector
     X.latent <- expandX(X, group)
     
     diag(over.temp) <- 0
@@ -72,7 +72,7 @@ gamma2beta <- function(gamma, incidence.mat, grp.vec, family) {
         gamma <- gamma
     }
     
-    for (i in 1:J) {
+    for (i in seq_len(J)) {
         ind <- which(incidence.mat[i, ] == 1)
         beta[ind, ] <- beta[ind, ] + gamma[which(grp.vec == i), , drop = FALSE]
     }
@@ -91,20 +91,20 @@ expandX <- function(X, group) {
     incidence.mat <- incidenceMatrix(X, group) # group membership incidence matrix
     over.mat <- Matrix::Matrix(incidence.mat %*% Matrix::t(incidence.mat), sparse = TRUE)
     # dimnames = dimnames(incidence.mat)) # overlap matrix
-    grp.vec <- rep(1:nrow(over.mat), times = Matrix::diag(over.mat)) # group index vector
+    grp.vec <- rep(seq_len(nrow(over.mat)), times = Matrix::diag(over.mat)) # group index vector
     
     # expand X to X.latent
     X.latent <- NULL
     names <- NULL
     
     ## the following code will automatically remove variables not included in 'group'
-    for (i in 1:nrow(incidence.mat)) {
+    for (i in seq_len(nrow(incidence.mat))) {
         idx <- incidence.mat[i, ] == 1
         X.latent <- cbind(X.latent, X[, idx, drop = FALSE])
         names <- c(names, colnames(incidence.mat)[idx])
         #     colnames(X.latent) <- c(colnames(X.latent), colnames(X)[incidence.mat[i,]==1])
     }
-    colnames(X.latent) <- paste("grp", grp.vec, "_", names, sep = "")
+    colnames(X.latent) <- sprintf("grp%d_%s", grp.vec, names)
     X.latent
 }
 # -------------------------------------------------------------------------------

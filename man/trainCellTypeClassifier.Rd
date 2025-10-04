@@ -20,3 +20,27 @@ Predicted cell types for the test set.
 Trains a cell type classification model using LDA (or specified model) and
 evaluates it on test data. Uses cross-validation for training.
 }
+\examples{
+# Create simple training data
+train_data <- data.frame(
+  feat1 = rnorm(100),
+  feat2 = rnorm(100),
+  feat3 = rnorm(100),
+  cellTypes = factor(rep(c("TypeA", "TypeB"), each = 50))
+)
+
+# Create test data
+test_data <- data.frame(
+  feat1 = rnorm(20),
+  feat2 = rnorm(20),
+  feat3 = rnorm(20)
+)
+
+# Train and predict
+predicted <- trainCellTypeClassifier(
+  trainX = train_data,
+  testX = test_data,
+  model = "lda"
+)
+print(predicted)
+}

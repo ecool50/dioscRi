@@ -24,3 +24,21 @@ List of variable groups for overlapping group lasso.
 Creates variable groups for overlapping group lasso based on hierarchical
 clustering tree structure, optionally using proportions or means.
 }
+\examples{
+# Load sample data
+data(sample_data_logit)
+data(sample_markerMeans)
+data(sample_tree)
+
+# Generate groups for overlapping group lasso
+groups <- generateGroups(
+  tree = sample_tree$tree,
+  nClust = 5,
+  proportions = sample_data_logit,
+  means = sample_markerMeans,
+  type = "all"
+)
+
+length(groups)
+sapply(groups[1:5], length)
+}

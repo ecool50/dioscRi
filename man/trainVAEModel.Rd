@@ -41,3 +41,46 @@ List containing the trained VAE model and encoder.
 Trains a VAE with MMD regularization, where the MMD loss enforces distributional
 similarity between true and encoded samples in latent space.
 }
+\examples{
+# Load sample data
+data(sample_cytof_data)
+data(sample_markers)
+
+# First compute reference samples for optimal training/validation split
+ref_samples <- computeReferenceSample(
+  data = sample_cytof_data,
+  markers = sample_markers,
+  sampleCol = "sample_id",
+  N = 2
+)
+
+# Use top samples (most representative) for training
+train_data <- sample_cytof_data[
+  sample_cytof_data$sample_id \%in\% ref_samples$topNSamples,
+  sample_markers
+]
+
+# Use bottom samples (most distinct) for validation
+val_data <- sample_cytof_data[
+  sample_cytof_data$sample_id \%in\% ref_samples$bottomNSamples,
+  sample_markers
+]
+
+# Train VAE model with optimal data split
+vae_model <- trainVAEModel(
+  trainData = train_data,
+  useMarkers = sample_markers,
+  epochs = 30,
+  latentDim = 2,
+  hiddenSizes = c(4, 3),
+  lambda = 0.01,
+  valData = val_data,
+  originalDim = length(sample_markers),
+  batchSize = 32,
+  seed = 1994
+)
+
+# Access components
+encoder <- vae_model$encoder
+vae <- vae_model$vae
+}

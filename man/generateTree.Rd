@@ -19,3 +19,18 @@ Constructs a hierarchical clustering tree from feature correlations for use
 in group lasso. Correlations are converted to distances, and the tree is
 created using the specified clustering method.
 }
+\examples{
+# Load sample data
+data(sample_data_logit)
+
+# Generate hierarchical tree from feature correlations
+tree_result <- generateTree(
+  features = sample_data_logit,
+  method = "ward"
+)
+
+# Access tree components
+tree <- tree_result$tree
+order <- tree_result$order
+print(order)
+}

@@ -22,3 +22,25 @@ List with decoded samples and encoded latent representations.
 Encodes and decodes new samples through the VAE model, returning both
 latent representations and decoded samples.
 }
+\examples{
+# Assuming vae_model is already trained (from previous example)
+data(sample_cytof_data)
+data(sample_markers)
+
+# Normalize new samples
+new_data <- sample_cytof_data[1:100, sample_markers]
+
+normalized <- decodeSamples(
+  newSamples = as.matrix(new_data),
+  vae = vae_model$vae,
+  latentDim = 5,
+  batchSize = 32
+)
+
+# Access results
+decoded_data <- normalized$decoded
+latent_rep <- normalized$encoded
+
+dim(decoded_data)
+dim(latent_rep)
+}

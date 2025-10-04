@@ -15,3 +15,12 @@ A ggplot object showing the elbow plot.
 \description{
 Generates an elbow plot of BIC values to aid in selecting the optimal alpha value.
 }
+\examples{
+# Create example BIC values
+bic_values <- c(120, 110, 105, 102, 101, 100.5, 100.2, 100.1, 100, 99.9)
+bic_df <- data.frame(bics = bic_values)
+
+# Create elbow plot
+elbow_plot <- plotElbow(bic_df)
+print(elbow_plot)
+}

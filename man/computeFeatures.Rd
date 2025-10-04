@@ -36,3 +36,31 @@ Data frame of features for group lasso model.
 Generates feature matrices for group lasso based on either cell type proportions
 or mean marker expression. Proportions are optionally logit-transformed.
 }
+\examples{
+# Load sample data
+data(sample_cytof_sce)
+data(sample_markers)
+
+# Compute proportion features
+prop_features <- computeFeatures(
+  sce = sample_cytof_sce,
+  featureType = "prop",
+  cellTypeCol = "cell_type",
+  sampleCol = "sample_id",
+  logit = TRUE,
+  useMarkers = sample_markers
+)
+dim(prop_features)
+
+# Compute mean marker features
+mean_features <- computeFeatures(
+  sce = sample_cytof_sce,
+  featureType = "mean",
+  cellTypeCol = "cell_type",
+  sampleCol = "sample_id",
+  logit = FALSE,
+  useMarkers = sample_markers,
+  assay = "norm"
+)
+dim(mean_features)
+}

@@ -12,7 +12,7 @@ fitModel(
   lambda = NULL,
   alphaSearch = seq(0.01, 0.1, 0.01),
   penalty = "cMCP",
-  modelSummary = F,
+  modelSummary = FALSE,
   seed = 1994
 )
 }
@@ -39,4 +39,29 @@ List containing the fitted model.
 \description{
 Fits the group lasso model to data with the selected alpha. If alpha is not provided,
 searches for optimal alpha using BIC.
+}
+\examples{
+# Load sample data
+data(sample_data_logit)
+data(sample_markerMeans)
+data(sample_groups)
+data(sample_clinicaldata)
+
+# Prepare training data
+X_train <- cbind(sample_data_logit, sample_markerMeans)
+X_train <- scale(X_train)
+y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+
+# Fit with automatic parameter selection
+fit_auto <- fitModel(
+  xTrain = X_train,
+  yTrain = y_train,
+  groups = sample_groups,
+  penalty = "grLasso",
+  seed = 1994
+)
+
+# Check coefficients
+coefs <- coef(fit_auto$fit)
+sum(coefs != 0)
 }

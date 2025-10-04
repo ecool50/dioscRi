@@ -24,3 +24,20 @@ This function computes covariance matrices for each sample, then calculates
 pairwise Frobenius norms between them to identify reference samples.
 Returns the top, bottom, median, reference, and validation samples.
 }
+\examples{
+# Load sample data
+data(sample_cytof_data)
+data(sample_markers)
+
+# Find reference samples based on covariance structure
+ref_samples <- computeReferenceSample(
+  data = sample_cytof_data,
+  markers = sample_markers,
+  sampleCol = "sample_id",
+  N = 2
+)
+
+print(ref_samples$refSampleInd)
+print(ref_samples$topNSamples)
+print(ref_samples$bottomNSamples)
+}

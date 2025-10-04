@@ -1,8 +1,11 @@
 Package: dioscRi
 Title: A package for clinical prediction in high parameter cytometry
-Version: 0.1.0
+Version: 0.99.0
 Authors@R: 
-    person("Elijah", "Willie", , "ewil3501@uni.sydney.edu.au", role = c("aut", "cre"))
+    person("Elijah", "Willie", 
+    email =  "ewil3501@uni.sydney.edu.au", 
+    role = c("aut", "cre"),
+    comment=c(ORCID="0000-0002-5773-3649"))
 Description: dioscRi is a deep learning-based tool designed to integrate clinical prediction with biological interpretability in high-dimensional cytometry data. By leveraging an MMD-VAE architecture for transferable normalization and denoising, and combining cell type proportions with marker means structured through empirically or biologically derived hierarchies, dioscRi provides robust and interpretable predictions. This framework excels in identifying immune signatures, improving prediction accuracy, and uncovering biologically relevant associations across diverse datasets.
 License: GPL-2
 Encoding: UTF-8
@@ -35,7 +38,7 @@ Imports:
 LazyData: false
 BuildResaveData: false
 Depends: 
-    R (>= 4.2.0)
+    R (>= 4.5.0)
 Suggests: 
     knitr,
     BiocStyle,
@@ -45,4 +48,4 @@ VignetteBuilder: knitr
 BugReports: https://github.com/ecool50/dioscRi/issues
 URL: https://github.com/ecool50/dioscRi
 biocViews: 
-    SingleCell, CellBasedAssays, Clustering, Spatial
+    SingleCell, CellBasedAssays, Clustering, Spatial, Normalization
