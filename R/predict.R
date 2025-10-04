@@ -9,7 +9,7 @@ predict.grpregOverlap <- function(object, X,
                                     "nvars", "ngroups", "norm"
                                   ),
                                   latent = FALSE, lambda,
-                                  which = 1:length(object$lambda), ...) {
+                                  which = seq_len(length(object$lambda)), ...) {
   family <- object$family
   if (!missing(X) && is.character(X)) {
     type <- X
@@ -30,7 +30,7 @@ predict.grpregOverlap <- function(object, X,
     if (type == "nvars") {
       v <- drop(apply(beta != 0, 2, FUN = which))
       if (is.list(v)) {
-        res <- sapply(v, length)
+        res <- vapply(v, length)
       } else {
         res <- length(v)
       }
@@ -42,7 +42,7 @@ predict.grpregOverlap <- function(object, X,
         which = which, drop = FALSE, ...
       )
       if (!latent) {
-        cat("The returned is the L2 norm of the latent coefficients! Set latent = 'TRUE' to avoid this warning message.\n\n")
+        message("The returned is the L2 norm of the latent coefficients! Set latent = 'TRUE' to avoid this warning message.\n\n")
       }
       return(drop(apply(beta, 2, function(x) {
         tapply(x, object$grp.vec, function(x) {
@@ -63,7 +63,7 @@ predict.grpregOverlap <- function(object, X,
         which = which, drop = FALSE, ...
       )
       if (!latent) {
-        cat("The returned is the L2 norm of the latent coefficients. Set latent = 'TRUE' to avoid this warning message.\n\n")
+        message("The returned is the L2 norm of the latent coefficients. Set latent = 'TRUE' to avoid this warning message.\n\n")
       }
       return(drop(apply(beta, 3, function(x) {
         apply(x, 2, function(x) {
@@ -76,7 +76,7 @@ predict.grpregOverlap <- function(object, X,
     X <- expandX(X, object$group)
   }
   if (latent) {
-    cat("Only latent 'coefficients', 'vars', 'nvars', 'norm' can be returned! Set latent = 'FALSE' to suppress this message.\n\n")
+    message("Only latent 'coefficients', 'vars', 'nvars', 'norm' can be returned! Set latent = 'FALSE' to suppress this message.\n\n")
   }
   obj.new <- object
   obj.new$group <- object$grp.vec
@@ -91,7 +91,7 @@ predict.grpregOverlap <- function(object, X,
 # -------------------------------------------------------------------------------
 #' @noRd
 coef.grpregOverlap <- function(object, lambda, latent = FALSE,
-                               which = 1:length(object$lambda), drop = TRUE, ...) {
+                               which = seq_along(object$lambda), drop = TRUE, ...) {
   family <- object$family
   obj.new <- object
   obj.new$beta <- object$beta.latent

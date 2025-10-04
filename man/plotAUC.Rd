@@ -22,3 +22,41 @@ A list with a ggplot object for the ROC curve and a data frame of predictions.
 Plots the ROC curve and calculates AUC for model predictions. Also returns
 a data frame with prediction results.
 }
+\examples{
+# Load sample data
+data(sample_data_logit)
+data(sample_markerMeans)
+data(sample_groups)
+data(sample_clinicaldata)
+
+# Split data for train/test (simple split for example)
+train_idx <- 1:7
+test_idx <- 8:10
+
+# Training data
+X_train <- cbind(sample_data_logit[train_idx,], 
+                 sample_markerMeans[train_idx,])
+X_train <- scale(X_train)
+y_train <- as.numeric(sample_clinicaldata$Outcome[train_idx]) - 1
+
+# Test data
+X_test <- cbind(sample_data_logit[test_idx,],
+                sample_markerMeans[test_idx,])
+X_test <- scale(X_test, 
+                center = attr(X_train, "scaled:center"),
+                scale = attr(X_train, "scaled:scale"))
+y_test <- as.numeric(sample_clinicaldata$Outcome[test_idx]) - 1
+
+# Fit model
+fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+
+# Plot AUC
+auc_result <- plotAUC(
+  fit = fit$fit,
+  xTest = X_test,
+  yTest = y_test,
+  title = "Test Set Performance:"
+)
+print(auc_result$plot)
+head(auc_result$preds)
+}

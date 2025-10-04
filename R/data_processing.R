@@ -10,6 +10,27 @@
 #' @importFrom SummarizedExperiment colData
 #' @importFrom boot logit
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_cytof_data)
+#' 
+#' # Calculate proportions with logit transformation
+#' props_logit <- getProp(
+#'   cells = sample_cytof_data,
+#'   feature = "cell_type",
+#'   imageID = "sample_id",
+#'   logit = TRUE
+#' )
+#' head(props_logit)
+#' 
+#' # Calculate raw proportions
+#' props_raw <- getProp(
+#'   cells = sample_cytof_data,
+#'   feature = "cell_type",
+#'   imageID = "sample_id",
+#'   logit = FALSE
+#' )
+#' head(props_raw)
 getProp <- function(cells, feature = "clusters", imageID = "sample_id", logit = TRUE) {
   # Extract relevant data based on the input class type
   if (is.data.frame(cells)) {
@@ -52,6 +73,22 @@ getProp <- function(cells, feature = "clusters", imageID = "sample_id", logit = 
 #' @importFrom Rfast cova Norm
 #' @importFrom stats median
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_cytof_data)
+#' data(sample_markers)
+#' 
+#' # Find reference samples based on covariance structure
+#' ref_samples <- computeReferenceSample(
+#'   data = sample_cytof_data,
+#'   markers = sample_markers,
+#'   sampleCol = "sample_id",
+#'   N = 2
+#' )
+#' 
+#' print(ref_samples$refSampleInd)
+#' print(ref_samples$topNSamples)
+#' print(ref_samples$bottomNSamples)
 computeReferenceSample <- function(data, markers, sampleCol = "sample_id", N = 2) {
   # Initialize containers for covariance matrices and norm calculations
   covMats <- list()
@@ -104,7 +141,7 @@ computeReferenceSample <- function(data, markers, sampleCol = "sample_id", N = 2
 #' @param fontSize Numeric; font size for heatmap labels.
 #' @return A matrix ready for heatmap visualization.
 #' @importFrom stats aggregate sd
-#' @export
+#' @noRd
 generateHeatmapMatrix <- function(data, markers = NULL, clusters = NULL, threshold = 2,
                                   clusterMarkers = FALSE, fontSize = 14) {
   # Validate clusters input
@@ -119,7 +156,7 @@ generateHeatmapMatrix <- function(data, markers = NULL, clusters = NULL, thresho
 
   # Select all numeric columns if markers are not specified
   if (is.null(markers)) {
-    if (!all(sapply(data, is.numeric))) {
+    if (!all(vapply(data, is.numeric))) {
       stop("If no markers are provided, all columns in data must be numeric.")
     }
     message("No markers provided; using all numeric columns as markers.")
@@ -169,6 +206,7 @@ generateHeatmapMatrix <- function(data, markers = NULL, clusters = NULL, thresho
 #' @param vals Numeric vector of BIC values.
 #' @return Integer; index of the optimal elbow point.
 #' @export
+#' @noRd
 computeElbow <- function(vals) {
   # Calculate differences between consecutive BIC values
   differences <- diff(vals)
@@ -189,21 +227,41 @@ computeElbow <- function(vals) {
 #' @return Predicted cell types for the test set.
 #' @importFrom caret train trainControl
 #' @export
+#' @examples
+#' # Create simple training data
+#' train_data <- data.frame(
+#'   feat1 = rnorm(100),
+#'   feat2 = rnorm(100),
+#'   feat3 = rnorm(100),
+#'   cellTypes = factor(rep(c("TypeA", "TypeB"), each = 50))
+#' )
+#' 
+#' # Create test data
+#' test_data <- data.frame(
+#'   feat1 = rnorm(20),
+#'   feat2 = rnorm(20),
+#'   feat3 = rnorm(20)
+#' )
+#' 
+#' # Train and predict
+#' predicted <- trainCellTypeClassifier(
+#'   trainX = train_data,
+#'   testX = test_data,
+#'   model = "lda"
+#' )
+#' print(predicted)
 trainCellTypeClassifier <- function(trainX, testX, model = "lda") {
-  library(doParallel)
-  library(caret)
 
   # Set up cross-validation control
   fitControl <- trainControl(method = "cv", number = 3)
 
   # Fit the model with specified method
   message("Fitting cell type classification model")
-  set.seed(1994)
   classifierFit <- caret::train(cellTypes ~ .,
     data = trainX, method = model,
     trControl = fitControl, trace = TRUE, preprocess = c("range")
   )
-  print(classifierFit)
+  message(classifierFit)
 
   # Predict cell types on the test data
   message("Predicting cell types on test data")
@@ -221,13 +279,22 @@ trainCellTypeClassifier <- function(trainX, testX, model = "lda") {
 #' contained in each node
 #' @importFrom dplyr mutate group_by arrange filter
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_tree)
+#' 
+#' # Apply findChildren to tree
+#' tree_with_children <- findChildren(sample_tree$tree)
+#' 
+#' # Check clusters
+#' print(tree_with_children$data$clusters)
 findChildren <- function(tree) {
     d <- tree$data
     d$clusters <- d$label
     d$clusters <- as.list(as.character(d$clusters))
     uNodes <- sort(unique(d$x), decreasing = TRUE)
     for(x in uNodes){
-        nodes = as.matrix(d[which(d$x==x), "node"])
+        nodes <- as.matrix(d[which(d$x==x), "node"])
         for(n in nodes){
             parentNode <- as.character(d$parent[which(d$node == n)])
             childClusters <- d$clusters[[which(d$node == n)]]
@@ -262,6 +329,20 @@ findChildren <- function(tree) {
 #' @importFrom ape as.phylo
 #' @importFrom ggtree ggtree
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' 
+#' # Generate hierarchical tree from feature correlations
+#' tree_result <- generateTree(
+#'   features = sample_data_logit,
+#'   method = "ward"
+#' )
+#' 
+#' # Access tree components
+#' tree <- tree_result$tree
+#' order <- tree_result$order
+#' print(order)
 generateTree <- function(features, method = "ward") {
   # Compute the pairwise correlation distance matrix
   distanceMatrix <- coop::pcor(features) %>%
@@ -296,6 +377,23 @@ generateTree <- function(features, method = "ward") {
 #' @importFrom janitor make_clean_names
 #' @importFrom dplyr mutate group_by
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' data(sample_markerMeans)
+#' data(sample_tree)
+#' 
+#' # Generate groups for overlapping group lasso
+#' groups <- generateGroups(
+#'   tree = sample_tree$tree,
+#'   nClust = 5,
+#'   proportions = sample_data_logit,
+#'   means = sample_markerMeans,
+#'   type = "all"
+#' )
+#' 
+#' length(groups)
+#' sapply(groups[1:5], length)
 generateGroups <- function(tree, nClust = 20, proportions, means, type = "all") {
   # Extract clusters and assign group numbers
   subGroups <- tree$data$clusters
@@ -356,6 +454,43 @@ generateGroups <- function(tree, nClust = 20, proportions, means, type = "all") 
 #' @importFrom reshape2 melt
 #' @importFrom rstatix t_test adjust_pvalue add_significance add_xy_position
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' data(sample_markerMeans)
+#' data(sample_groups)
+#' data(sample_clinicaldata)
+#' 
+#' # Prepare and fit model first
+#' X_train <- cbind(sample_data_logit, sample_markerMeans)
+#' X_train <- scale(X_train)
+#' y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+#' 
+#' fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+#' 
+#' # Extract significant features for proportions
+#' sig_props <- getSigFeatures(
+#'   fit = fit$fit,
+#'   type = "prop",
+#'   prop = sample_data_logit,
+#'   clinicalData = sample_clinicaldata,
+#'   outcome = "Outcome"
+#' )
+#' 
+#' # Extract significant features for means
+#' sig_means <- getSigFeatures(
+#'   fit = fit$fit,
+#'   type = "mean",
+#'   mean = sample_markerMeans,
+#'   clinicalData = sample_clinicaldata,
+#'   outcome = "Outcome",
+#'   clinicalVariables = c("Age", "Gender")
+#' )
+#' 
+#' # View results
+#' if(nrow(sig_means$stats) > 0) {
+#'   print(sig_means$stats[sig_means$stats$p.adj < 0.05, ])
+#' }
 getSigFeatures <- function(fit, type = "mean", mean = NULL, clinicalVariables = NULL,
                            prop = NULL, clinicalData = NULL, outcome = NULL) {
   # Get coefficients from the model and filter out zero values
@@ -440,6 +575,33 @@ getSigFeatures <- function(fit, type = "mean", mean = NULL, clinicalVariables = 
 #' @importFrom tidyr pivot_longer pivot_wider
 #' @importFrom tibble column_to_rownames
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_cytof_sce)
+#' data(sample_markers)
+#' 
+#' # Compute proportion features
+#' prop_features <- computeFeatures(
+#'   sce = sample_cytof_sce,
+#'   featureType = "prop",
+#'   cellTypeCol = "cell_type",
+#'   sampleCol = "sample_id",
+#'   logit = TRUE,
+#'   useMarkers = sample_markers
+#' )
+#' dim(prop_features)
+#' 
+#' # Compute mean marker features
+#' mean_features <- computeFeatures(
+#'   sce = sample_cytof_sce,
+#'   featureType = "mean",
+#'   cellTypeCol = "cell_type",
+#'   sampleCol = "sample_id",
+#'   logit = FALSE,
+#'   useMarkers = sample_markers,
+#'   assay = "norm"
+#' )
+#' dim(mean_features)
 computeFeatures <- function(sce, featureType = "prop", cellTypeCol = "clusters",
                             sampleCol = "sample_id", logit = TRUE, useMarkers, assay = "norm") {
   if (featureType == "prop") {

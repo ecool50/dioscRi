@@ -10,7 +10,6 @@ overlapMatrix <- function(X, group) {
     over.mat
 }
 # ------------------------------------------------------------------------------
-
 ## function: incidence matrix: I[i, j] = 1 if group i contains variable j.
 ## function was obtained from https://github.com/YaohuiZeng/grpregOverlap with some minor modifications
 # ------------------------------------------------------------------------------
@@ -31,20 +30,20 @@ incidenceMatrix <- function(X, group) {
                       )
     )
     if (is.null(colnames(X))) {
-        colnames(X) <- paste("V", 1:ncol(X), sep = "")
+        colnames(X) <- sprintf("V%d", seq_len(ncol(X)))
     }
     if (is.null(names(group))) {
-        names(group) <- paste("grp", 1:J, sep = "")
+        names(group) <- sprintf("grp%d", seq_len(J))
     }
     
     if (is.numeric(group[[1]])) {
-        for (i in 1:J) {
+        for (i in seq_len(J)) {
             ind <- group[[i]]
             grp.mat[i, ind] <- 1
             colnames(grp.mat)[ind] <- colnames(X)[ind]
         }
     } else { ## character, names of variables
-        for (i in 1:J) {
+        for (i in seq_len(J)) {
             grp.i <- as.character(group[[i]])
             ind <- colnames(X) %in% grp.i
             grp.mat[i, ] <- 1 * ind

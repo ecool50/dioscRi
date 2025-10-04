@@ -36,3 +36,40 @@ A ggplot object representing the dendrogram with optional heatmap overlay.
 Creates a dendrogram visualization for the group lasso model. Optionally,
 displays a heatmap overlay of the feature coefficients.
 }
+\examples{
+# Load sample data
+data(sample_data_logit)
+data(sample_markerMeans)
+data(sample_tree)
+data(sample_groups)
+data(sample_clinicaldata)
+
+# Prepare and fit model
+X_train <- cbind(sample_data_logit, sample_markerMeans)
+X_train <- scale(X_train)
+y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+
+fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+
+# Visualize with heatmap
+tree_plot <- visualiseModelTree(
+  fit = fit$fit,
+  tree = sample_tree$tree,
+  type = "cluster",
+  trainingData = X_train,
+  heatmap = TRUE,
+  title = "Feature Tree with Coefficients"
+)
+print(tree_plot)
+
+# Visualize without heatmap
+tree_simple <- visualiseModelTree(
+  fit = fit$fit,
+  tree = sample_tree$tree,
+  type = "cluster",
+  trainingData = X_train,
+  heatmap = FALSE,
+  title = "Feature Tree Structure"
+)
+print(tree_simple)
+}

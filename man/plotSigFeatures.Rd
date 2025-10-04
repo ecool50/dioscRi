@@ -25,3 +25,47 @@ Creates a boxplot to visualize the expression levels of significant features
 identified by the model, grouped by outcome. Optionally overlays statistical
 significance labels on the plot.
 }
+\examples{
+# Load sample data
+data(sample_data_logit)
+data(sample_markerMeans)
+data(sample_groups)
+data(sample_clinicaldata)
+
+# Prepare and fit model
+X_train <- cbind(sample_data_logit, sample_markerMeans)
+X_train <- scale(X_train)
+y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+
+fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+
+# Get significant features
+sig_features <- getSigFeatures(
+  fit = fit$fit,
+  type = "prop",
+  prop = sample_data_logit,
+  clinicalData = sample_clinicaldata,
+  outcome = "Outcome"
+)
+
+# Plot if features found
+if(!is.null(sig_features$sigFeatures) && nrow(sig_features$stats) > 0) {
+  # Boxplot
+  p1 <- plotSigFeatures(
+    stats = sig_features$stats,
+    sigFeatures = sig_features$sigFeatures,
+    outcome = "Outcome",
+    type = "boxplot"
+  )
+  print(p1)
+  
+  # Density plot
+  p2 <- plotSigFeatures(
+    stats = sig_features$stats,
+    sigFeatures = sig_features$sigFeatures,
+    outcome = "Outcome",
+    type = "density"
+  )
+  print(p2)
+}
+}

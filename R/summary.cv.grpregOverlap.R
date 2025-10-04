@@ -7,7 +7,7 @@ summary.cv.grpregOverlap <- function(object, ...) {
   class(obj.new) <- "cv.grpreg"
   res <- summary(obj.new, ...)
 
-  nvars.latent <- predict(object$fit, type = "nvars", latent = T)
+  nvars.latent <- predict(object$fit, type = "nvars", latent = TRUE)
   res$nvars.latent <- nvars.latent
   d.latent <- dim(object$fit$beta.latent)
   if (length(d.latent) == 3) {

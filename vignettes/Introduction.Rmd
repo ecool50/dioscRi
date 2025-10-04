@@ -133,14 +133,14 @@ The arcsinh transformation is commonly used in cytometry data to manage its wide
 ```{r}
 # the training data
 df_train[, useMarkers]  <- cyCombine::transform_asinh(df_train[, useMarkers], 
-                                                markers = useMarkers, derand = F)
+                                                markers = useMarkers, derand = TRUE)
 
 colnames(df_train)[colnames(df_train) %in% useMarkers] <- 
   gsub("_", "-", colnames(df_train)[colnames(df_train) %in% useMarkers])
 
 # the testing data
 df_test[, useMarkers]  <- cyCombine::transform_asinh(df_test[, useMarkers],
-                                                  markers = useMarkers, derand = F)
+                                                  markers = useMarkers, derand = FALSE)
 colnames(df_test)[colnames(df_test) %in% useMarkers] <- 
   gsub("_", "-", colnames(df_test)[colnames(df_test) %in% useMarkers])
 
@@ -284,12 +284,12 @@ Next, the logit of cell type proportions in each sample and the marker means per
 # compute logit of proportions for the training set
 prop_logit_train <- computeFeatures(sce = sce_train, featureType = 'prop', 
                               cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 
 # compute the marker means per cell type for the training set
 markerMeanCellType_train <- computeFeatures(sce = sce_train, featureType = 'mean', 
                               cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 
 # setup response as well
 row_names_train <- rownames(prop_logit_train)
@@ -303,12 +303,12 @@ y_train <- as.numeric(levels(y_train))[y_train]
 # compute logit of proportions for the testing set
 prop_logit_test <- computeFeatures(sce = sce_test, featureType = 'prop', 
                               cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 
 # compute the marker means per cell type for the testing set
 markerMeanCellType_test <- computeFeatures(sce = sce_test, featureType = 'mean', 
                               cellTypeCol = 'clusters_norm', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 
 # setup response as well
 row_names_test <- rownames(prop_logit_test)
@@ -628,11 +628,11 @@ sce_train <- sce_train[, sce_train$mg_cell_type_distinct != ""]
 data_logit_train <- computeFeatures(sce = sce_train, featureType = 'prop', 
                               cellTypeCol = 'mg_cell_type_distinct', 
                               sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 
 data_train <- computeFeatures(sce = sce_train, featureType = 'prop', 
                               cellTypeCol = 'mg_cell_type_distinct', sampleCol = 'sample_id', 
-                              logit = F, useMarkers = useMarkers)
+                              logit = FALSE, useMarkers = useMarkers)
 
 row_names_train <- rownames(data_logit_train)
 y_train <- factor(clinicaldata_train[match(row_names_train,clinicaldata_train$sample_id),
@@ -644,7 +644,7 @@ y_train <- as.numeric(levels(y_train))[y_train]
 ```{r, eval=T}
 markerMeanCellType_train <- computeFeatures(sce = sce_train, featureType = 'mean', assay = "norm",
                               cellTypeCol = 'mg_cell_type_distinct', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 ```
 
 
@@ -657,7 +657,7 @@ sce_test$clusters_mg <- droplevels(sce_test$clusters_mg)
 
 data_logit_test <- computeFeatures(sce = sce_test, featureType = 'prop', 
                               cellTypeCol = 'clusters_mg', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 
 # setup response as well
 row_names_test <- rownames(data_logit_test)
@@ -670,7 +670,7 @@ y_test <- as.numeric(levels(y_test))[y_test]
 ```{r, eval=T}
 markerMeanCellType_test <- computeFeatures(sce = sce_test, featureType = 'mean',  assay = "norm",
                               cellTypeCol = 'clusters_mg', sampleCol = 'sample_id', 
-                              logit = T, useMarkers = useMarkers)
+                              logit = TRUE, useMarkers = useMarkers)
 ```
 
 # Generate Tree
@@ -697,8 +697,8 @@ root <- Node$new("Root")
 ```{r}
 nclust <- ncol(data_logit_train)
 order <- as.phylo(root)$tip.label
-tree <- treekoR:::findChildren(ggtree(as.phylo(root),
-                                            ladderize = F, layout = 'dendrogram'))
+tree <- findChildren(ggtree(as.phylo(root),
+                            ladderize = FALSE, layout = 'dendrogram'))
 
 groups <- generateGroups(tree = tree, nClust = nclust, 
                          proportions = data_logit_train, means = markerMeanCellType_train)

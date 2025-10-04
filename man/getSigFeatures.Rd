@@ -36,3 +36,41 @@ List containing:
 Extracts significant features from a fitted group lasso model based on either
 mean values or proportions, performs statistical tests, and adjusts p-values.
 }
+\examples{
+# Load sample data
+data(sample_data_logit)
+data(sample_markerMeans)
+data(sample_groups)
+data(sample_clinicaldata)
+
+# Prepare and fit model first
+X_train <- cbind(sample_data_logit, sample_markerMeans)
+X_train <- scale(X_train)
+y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+
+fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+
+# Extract significant features for proportions
+sig_props <- getSigFeatures(
+  fit = fit$fit,
+  type = "prop",
+  prop = sample_data_logit,
+  clinicalData = sample_clinicaldata,
+  outcome = "Outcome"
+)
+
+# Extract significant features for means
+sig_means <- getSigFeatures(
+  fit = fit$fit,
+  type = "mean",
+  mean = sample_markerMeans,
+  clinicalData = sample_clinicaldata,
+  outcome = "Outcome",
+  clinicalVariables = c("Age", "Gender")
+)
+
+# View results
+if(nrow(sig_means$stats) > 0) {
+  print(sig_means$stats[sig_means$stats$p.adj < 0.05, ])
+}
+}

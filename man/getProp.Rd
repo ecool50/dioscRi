@@ -22,3 +22,25 @@ Data frame of cell type proportions, with samples as rows and cell types as colu
 Computes the proportion of each cell type within each sample. Optionally, the
 proportions can be logit-transformed to avoid extreme values.
 }
+\examples{
+# Load sample data
+data(sample_cytof_data)
+
+# Calculate proportions with logit transformation
+props_logit <- getProp(
+  cells = sample_cytof_data,
+  feature = "cell_type",
+  imageID = "sample_id",
+  logit = TRUE
+)
+head(props_logit)
+
+# Calculate raw proportions
+props_raw <- getProp(
+  cells = sample_cytof_data,
+  feature = "cell_type",
+  imageID = "sample_id",
+  logit = FALSE
+)
+head(props_raw)
+}

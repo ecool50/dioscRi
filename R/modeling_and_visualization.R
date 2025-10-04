@@ -15,7 +15,7 @@
 #' @importFrom ggplot2 scale_color_gradient2
 #' @importFrom stringr str_replace
 #' @importFrom scales muted
-#' @export
+#' @noRd
 plotOverlapTree <- function(modelFit, trainingData, treeData, nodesToRemove) {
   # Function to sort each sublist
   sortSublist <- function(x) {
@@ -23,10 +23,10 @@ plotOverlapTree <- function(modelFit, trainingData, treeData, nodesToRemove) {
   }
 
   # Predict the variables from the model
-  predictedVars <- predict(modelFit, type = "vars", latent = T)
+  predictedVars <- predict(modelFit, type = "vars", latent = TRUE)
 
   # Extract coefficients and filter the relevant features
-  resultData <- coef(modelFit, latent = T) %>%
+  resultData <- coef(modelFit, latent = TRUE) %>%
     as.matrix() %>%
     as.data.frame() %>%
     dplyr::mutate(feature = rownames(.)) %>%
@@ -114,12 +114,47 @@ plotOverlapTree <- function(modelFit, trainingData, treeData, nodesToRemove) {
 #' @return A ggplot object representing the dendrogram with optional heatmap overlay.
 #' @importFrom dplyr filter mutate select
 #' @importFrom tidyr pivot_wider
-#' @importFrom ggtree ggtree geom_tiplab
-#' @importFrom ggtree gheatmap
+#' @importFrom ggtree ggtree geom_tiplab gheatmap
 #' @importFrom ggplot2 labs theme scale_fill_gradientn
 #' @importFrom stringr str_replace
 #' @importFrom scales rescale
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' data(sample_markerMeans)
+#' data(sample_tree)
+#' data(sample_groups)
+#' data(sample_clinicaldata)
+#' 
+#' # Prepare and fit model
+#' X_train <- cbind(sample_data_logit, sample_markerMeans)
+#' X_train <- scale(X_train)
+#' y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+#' 
+#' fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+#' 
+#' # Visualize with heatmap
+#' tree_plot <- visualiseModelTree(
+#'   fit = fit$fit,
+#'   tree = sample_tree$tree,
+#'   type = "cluster",
+#'   trainingData = X_train,
+#'   heatmap = TRUE,
+#'   title = "Feature Tree with Coefficients"
+#' )
+#' print(tree_plot)
+#' 
+#' # Visualize without heatmap
+#' tree_simple <- visualiseModelTree(
+#'   fit = fit$fit,
+#'   tree = sample_tree$tree,
+#'   type = "cluster",
+#'   trainingData = X_train,
+#'   heatmap = FALSE,
+#'   title = "Feature Tree Structure"
+#' )
+#' print(tree_simple)
 visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
                                trainingData, nodesToRemove = NULL,
                                title = "Feature Tree") {
@@ -153,13 +188,14 @@ visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
 
   # Split feature strings into clusters and markers based on the specified type
   splits <- strsplit(coefs$feature, "_", fixed = TRUE)
-
   if (type == "cluster") {
-    coefs$cellType <- sapply(splits, function(x) paste(x[1], x[2], sep = "_"))
-    coefs$marker <- sapply(splits, function(x) x[3])
+      coefs$cellType <- vapply(splits, function(x) sprintf("%s_%s", x[1], x[2]), 
+                               FUN.VALUE = character(1))
+      coefs$marker <- vapply(splits, function(x) x[3], 
+                             FUN.VALUE = character(1))
   } else {
-    coefs$cellType <- gsub("_.*", "", coefs$feature)
-    coefs$marker <- sub(".*_", "", coefs$feature)
+      coefs$cellType <- gsub("_.*", "", coefs$feature)
+      coefs$marker <- sub(".*_", "", coefs$feature)
   }
 
   # Reshape data to wide format for heatmap plotting
@@ -225,6 +261,49 @@ visualiseModelTree <- function(fit, tree, type = "cluster", heatmap = TRUE,
 #' @importFrom ggsci scale_color_jco
 #' @importFrom ggplot2 scale_y_continuous
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' data(sample_markerMeans)
+#' data(sample_groups)
+#' data(sample_clinicaldata)
+#' 
+#' # Prepare and fit model
+#' X_train <- cbind(sample_data_logit, sample_markerMeans)
+#' X_train <- scale(X_train)
+#' y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+#' 
+#' fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+#' 
+#' # Get significant features
+#' sig_features <- getSigFeatures(
+#'   fit = fit$fit,
+#'   type = "prop",
+#'   prop = sample_data_logit,
+#'   clinicalData = sample_clinicaldata,
+#'   outcome = "Outcome"
+#' )
+#' 
+#' # Plot if features found
+#' if(!is.null(sig_features$sigFeatures) && nrow(sig_features$stats) > 0) {
+#'   # Boxplot
+#'   p1 <- plotSigFeatures(
+#'     stats = sig_features$stats,
+#'     sigFeatures = sig_features$sigFeatures,
+#'     outcome = "Outcome",
+#'     type = "boxplot"
+#'   )
+#'   print(p1)
+#'   
+#'   # Density plot
+#'   p2 <- plotSigFeatures(
+#'     stats = sig_features$stats,
+#'     sigFeatures = sig_features$sigFeatures,
+#'     outcome = "Outcome",
+#'     type = "density"
+#'   )
+#'   print(p2)
+#' }
 plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "density") {
   pltData <- sigFeatures %>%
     as.data.frame() %>%
@@ -301,6 +380,43 @@ plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "den
 #' @importFrom ROCR prediction performance
 #' @importFrom ggplot2 ggplot aes geom_line geom_abline labs theme_bw
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' data(sample_markerMeans)
+#' data(sample_groups)
+#' data(sample_clinicaldata)
+#' 
+#' # Split data for train/test (simple split for example)
+#' train_idx <- 1:7
+#' test_idx <- 8:10
+#' 
+#' # Training data
+#' X_train <- cbind(sample_data_logit[train_idx,], 
+#'                  sample_markerMeans[train_idx,])
+#' X_train <- scale(X_train)
+#' y_train <- as.numeric(sample_clinicaldata$Outcome[train_idx]) - 1
+#' 
+#' # Test data
+#' X_test <- cbind(sample_data_logit[test_idx,],
+#'                 sample_markerMeans[test_idx,])
+#' X_test <- scale(X_test, 
+#'                 center = attr(X_train, "scaled:center"),
+#'                 scale = attr(X_train, "scaled:scale"))
+#' y_test <- as.numeric(sample_clinicaldata$Outcome[test_idx]) - 1
+#' 
+#' # Fit model
+#' fit <- fitModel(X_train, y_train, sample_groups, penalty = "grLasso")
+#' 
+#' # Plot AUC
+#' auc_result <- plotAUC(
+#'   fit = fit$fit,
+#'   xTest = X_test,
+#'   yTest = y_test,
+#'   title = "Test Set Performance:"
+#' )
+#' print(auc_result$plot)
+#' head(auc_result$preds)
 plotAUC <- function(fit, xTest, yTest, title = "") {
   # Get predictions from the model
   preds <- predict(fit, X = xTest, type = "response")
@@ -323,7 +439,7 @@ plotAUC <- function(fit, xTest, yTest, title = "") {
     geom_line(color = "blue") +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
     labs(x = "False Positive Rate", y = "True Positive Rate") +
-    ggtitle(paste(title, round(aucValue, 2))) +
+    ggtitle(sprintf("%s %.2f", title, aucValue)) +
     theme_bw() +
     theme(
       plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
@@ -344,11 +460,19 @@ plotAUC <- function(fit, xTest, yTest, title = "") {
 #' @importFrom ggplot2 ggplot aes geom_vline labs theme element_text
 #' @importFrom ggpubr ggline
 #' @export
+#' @examples
+#' # Create example BIC values
+#' bic_values <- c(120, 110, 105, 102, 101, 100.5, 100.2, 100.1, 100, 99.9)
+#' bic_df <- data.frame(bics = bic_values)
+#' 
+#' # Create elbow plot
+#' elbow_plot <- plotElbow(bic_df)
+#' print(elbow_plot)
 plotElbow <- function(bics) {
   # Prepare data for plotting
   plotData <- data.frame(
     Alpha = seq(0.01, 0.1, 0.01),
-    BIC = bics$bics[1:10]
+    BIC = bics$bics[seq_len(10)]
   )
 
   # Generate elbow plot
@@ -381,7 +505,7 @@ plotElbow <- function(bics) {
 #' @param alphaSearch Numeric vector of alpha values to search.
 #' @param seed Integer; random seed for reproducibility.
 #' @return A list with the best fitted model, best BIC, best alpha, and BIC values for each alpha.
-#' @export
+#' @noRd
 selectAlpha <- function(xTrain, yTrain, groups, penalty = "cMCP", weights,
                         alphaSearch = seq(0.01, 0.1, by = 0.01), seed = 1994) {
   bestBIC <- Inf
@@ -392,7 +516,7 @@ selectAlpha <- function(xTrain, yTrain, groups, penalty = "cMCP", weights,
 
   for (i in seq_along(alphaSearch)) {
     alpha <- alphaSearch[i]
-    message(paste("Testing alpha:", alpha))
+    message(paste0("Testing alpha: ", alpha))
 
     cvFit <- cv.grpregOverlap(xTrain, yTrain, groups,
       nfolds = 3, seed = seed,
@@ -412,7 +536,7 @@ selectAlpha <- function(xTrain, yTrain, groups, penalty = "cMCP", weights,
       bestAlpha <- alpha
       bestBIC <- currentBIC
       bestFit <- fit
-      message(paste("Current best BIC:", currentBIC))
+      message(sprintf("Current best BIC: %.4f", currentBIC))
     }
   }
 
@@ -431,11 +555,10 @@ selectAlpha <- function(xTrain, yTrain, groups, penalty = "cMCP", weights,
 #' @param lambdaSearch Numeric vector of lambda values to search.
 #' @param seed Integer; random seed for reproducibility.
 #' @return A list with the best fitted model, best BIC, best lambda, and BIC values for each lambda.
-#' @export
+#' @noRd
 selectLambda <- function(xTrain, yTrain, groups, penalty = "cMCP",
                          alphaRange = seq(0.1, 1, length = 10),
                          lambdaSearch = seq(0.01, 1, length = 10), seed = 1994) {
-    set.seed(seed)
     
     # Initialize variables to store the best results
     bestBic <- Inf
@@ -449,7 +572,7 @@ selectLambda <- function(xTrain, yTrain, groups, penalty = "cMCP",
     # Loop over alpha values
     for (alphaIdx in seq_along(alphaRange)) {
         alpha <- alphaRange[alphaIdx]
-        cat("Testing alpha =", alpha, "\n")
+        message("Testing alpha =", alpha, "\n")
         
         # Fit model for the given alpha and lambda range
         fit <- tryCatch(
@@ -486,7 +609,7 @@ selectLambda <- function(xTrain, yTrain, groups, penalty = "cMCP",
             bestLambda <- fit$lambda[minBicIdx] # Use actual lambda values
             bestAlpha <- alpha
             bestFit <- fit
-            cat("New best BIC:", bestBic, "at alpha =", bestAlpha, "lambda =", bestLambda, "\n")
+            message(sprintf("New best BIC: %.4f at alpha = %.3f lambda = %.4f", bestBic, bestAlpha, bestLambda))
         }
     }
     
@@ -514,9 +637,33 @@ selectLambda <- function(xTrain, yTrain, groups, penalty = "cMCP",
 #' @param seed Integer; random seed for reproducibility.
 #' @return List containing the fitted model.
 #' @export
+#' @examples
+#' # Load sample data
+#' data(sample_data_logit)
+#' data(sample_markerMeans)
+#' data(sample_groups)
+#' data(sample_clinicaldata)
+#' 
+#' # Prepare training data
+#' X_train <- cbind(sample_data_logit, sample_markerMeans)
+#' X_train <- scale(X_train)
+#' y_train <- as.numeric(sample_clinicaldata$Outcome) - 1
+#' 
+#' # Fit with automatic parameter selection
+#' fit_auto <- fitModel(
+#'   xTrain = X_train,
+#'   yTrain = y_train,
+#'   groups = sample_groups,
+#'   penalty = "grLasso",
+#'   seed = 1994
+#' )
+#' 
+#' # Check coefficients
+#' coefs <- coef(fit_auto$fit)
+#' sum(coefs != 0)
 fitModel <- function(xTrain, yTrain, groups, alpha = NULL, lambda = NULL,
                      alphaSearch = seq(0.01, 0.1, 0.01),
-                     penalty = "cMCP", modelSummary = F,
+                     penalty = "cMCP", modelSummary = FALSE,
                      seed = 1994) {
   # Determine optimal alpha if not provided
   message("Computing optimal alpha using the BIC method")
@@ -535,8 +682,8 @@ fitModel <- function(xTrain, yTrain, groups, alpha = NULL, lambda = NULL,
     alpha <- resBIC$bestAlpha
   }
 
-  message(paste("Optimal alpha value:", alpha))
-  message(paste("Optimal lambda value:", lambda))
+  message(paste0("Optimal alpha value: ", alpha))
+  message(paste0("Optimal lambda value: ", lambda))
   message("Fitting the final model")
 
   # # Fit the model with selected alpha
@@ -550,7 +697,7 @@ fitModel <- function(xTrain, yTrain, groups, alpha = NULL, lambda = NULL,
     grpreg:::plot.cv.grpreg(cvFit, type = "pred")
     grpreg:::plot.cv.grpreg(cvFit, type = "snr")
     grpreg:::plot.cv.grpreg(cvFit, type = "rsq")
-    print(summary(cvFit))
+    message(summary(cvFit))
   }
 
   # print(cvFit$lambda.min)
@@ -577,7 +724,7 @@ fitModel <- function(xTrain, yTrain, groups, alpha = NULL, lambda = NULL,
 #' @importFrom tidyr pivot_wider
 #' @importFrom ggplot2 ggplot aes geom_tile scale_fill_gradientn theme element_text
 #' @importFrom reshape2 melt
-#' @export
+#' @noRd
 plotHeatmap <- function(fit, type = "cluster", order = NULL, markerOrder = NULL) {
   # Extract and filter coefficients
   coefs <- coef(fit) %>%
@@ -589,13 +736,14 @@ plotHeatmap <- function(fit, type = "cluster", order = NULL, markerOrder = NULL)
   # Split feature into Cell_Type and Marker
   splits <- strsplit(coefs$feature, "_", fixed = TRUE)
   if (type == "cluster") {
-    coefs$Cell_Type <- sapply(splits, function(x) paste(x[1], x[2], sep = "_"))
-    coefs$Marker <- sapply(splits, function(x) x[3])
+      coefs$Cell_Type <- vapply(splits, function(x) sprintf("%s_%s", x[1], x[2]), 
+                                FUN.VALUE = character(1))
+      coefs$Marker <- vapply(splits, function(x) x[3], 
+                             FUN.VALUE = character(1))
   } else {
-    coefs$Cell_Type <- gsub("_.*", "", coefs$feature)
-    coefs$Marker <- sub(".*_", "", coefs$feature)
+      coefs$Cell_Type <- gsub("_.*", "", coefs$feature)
+      coefs$Marker <- sub(".*_", "", coefs$feature)
   }
-
   # Reshape data for heatmap
   coefsWide <- coefs %>%
     dplyr::select(Cell_Type, Marker, V1) %>%
@@ -625,7 +773,7 @@ plotHeatmap <- function(fit, type = "cluster", order = NULL, markerOrder = NULL)
   coefsWide$Gene <- rownames(coefsWide)
   coefsMelted <- reshape2::melt(coefsWide)
   coefsMelted$Gene <- ordered(coefsMelted$Gene, levels = rev(sort(unique(coefsMelted$Gene))))
-  coefsMelted <- coefsMelted[order(coefsMelted$Gene, decreasing = T), ]
+  coefsMelted <- coefsMelted[order(coefsMelted$Gene, decreasing = TRUE), ]
   colnames(coefsMelted)[2:3] <- c("Cluster", "Value")
 
   # Plot heatmap
