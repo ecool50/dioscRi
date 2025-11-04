@@ -1,0 +1,18 @@
+note <- sprintf("R package version %s", meta$Version)
+
+bibentry(bibtype = "Article",
+         title = "{dioscRi enables transferable prediction of clinical outcomes in multi-parameter cytometry data}",
+         author = c(person("Elijah", "Willie"),
+                    person("Shreya", "Rao"),
+                    person("Gemma", "Figtree"),
+                    person("Jean", "Yang"),
+                    person("Barbara", "Fazekas de St Groth"),
+                    person("Helen", "McGuire"),
+                    person("Ellis", "Patrick")
+                    ),
+         year = "2025",
+         journal = "bioRxiv",
+         doi = "10.1101/2025.09.08.675022",
+         url = "https://doi.org/10.1101/2025.09.08.675022",
+         publisher = "Cold Spring Harbor Laboratory",
+         header = "To cite dioscRi in publications please use:")e
