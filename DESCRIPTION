@@ -34,7 +34,8 @@ Imports:
     treekoR,
     keras3,
     tensorflow,
-    Matrix
+    Matrix,
+    reticulate
 LazyData: false
 BuildResaveData: false
 Depends: 

@@ -449,7 +449,7 @@ plotAUC <- function(fit, xTest, yTest, title = "") {
       axis.text.y = element_text(size = 16)
     )
 
-  return(list(plot = aucPlot, preds = predsData))
+  return(list(plot = aucPlot, preds = predsData, auc = aucValue))
 }
 
 #' Plot Elbow Graph for BICs
