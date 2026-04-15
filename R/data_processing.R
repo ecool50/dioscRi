@@ -217,15 +217,18 @@ computeElbow <- function(vals) {
   return(optimalIndex)
 }
 
-#' Train Cell Type Classifier using Caret
+#' Train Cell Type Classifier
 #'
-#' Trains a cell type classification model using LDA (or specified model) and
-#' evaluates it on test data. Uses cross-validation for training.
-#' @param trainX Data frame of training features with cell type labels.
-#' @param testX Data frame of test features.
-#' @param model Character; the method to use for training, e.g., "lda".
-#' @return Predicted cell types for the test set.
-#' @importFrom caret train trainControl
+#' Trains a cell type classification model and predicts cell types on test data.
+#' Uses MASS::lda directly for speed. For large datasets (>maxCells), automatically
+#' subsamples the training data while preserving class balance.
+#'
+#' @param trainX Data frame of training features with a \code{cellTypes} column.
+#' @param testX Data frame of test features (same columns as trainX minus cellTypes).
+#' @param model Character; the method to use. Currently supports "lda" (default).
+#' @param maxCells Integer; maximum training cells before subsampling. Default 200000.
+#' @return Factor of predicted cell types for the test set.
+#' @importFrom MASS lda
 #' @export
 #' @examples
 #' # Create simple training data
@@ -235,14 +238,14 @@ computeElbow <- function(vals) {
 #'   feat3 = rnorm(100),
 #'   cellTypes = factor(rep(c("TypeA", "TypeB"), each = 50))
 #' )
-#' 
+#'
 #' # Create test data
 #' test_data <- data.frame(
 #'   feat1 = rnorm(20),
 #'   feat2 = rnorm(20),
 #'   feat3 = rnorm(20)
 #' )
-#' 
+#'
 #' # Train and predict
 #' predicted <- trainCellTypeClassifier(
 #'   trainX = train_data,
@@ -250,22 +253,37 @@ computeElbow <- function(vals) {
 #'   model = "lda"
 #' )
 #' print(predicted)
-trainCellTypeClassifier <- function(trainX, testX, model = "lda") {
+trainCellTypeClassifier <- function(trainX, testX, model = "lda", maxCells = 200000L) {
 
-  # Set up cross-validation control
-  fitControl <- trainControl(method = "cv", number = 3)
-
-  # Fit the model with specified method
   message("Fitting cell type classification model")
-  classifierFit <- caret::train(cellTypes ~ .,
-    data = trainX, method = model,
-    trControl = fitControl, trace = TRUE, preprocess = c("range")
-  )
-  message(classifierFit)
 
-  # Predict cell types on the test data
-  message("Predicting cell types on test data")
-  predictedCellTypes <- predict(classifierFit, testX)
+  # Subsample if training data is too large (preserves class balance)
+  if (nrow(trainX) > maxCells) {
+    message(sprintf("  Subsampling from %d to %d cells for training", nrow(trainX), maxCells))
+    set.seed(1994)
+    trainX <- trainX %>%
+      dplyr::group_by(cellTypes) %>%
+      dplyr::slice_sample(prop = maxCells / nrow(trainX)) %>%
+      dplyr::ungroup() %>%
+      as.data.frame()
+    message(sprintf("  Subsampled to %d cells", nrow(trainX)))
+  }
+
+  if (model == "lda") {
+    # Direct MASS::lda — no caret overhead
+    classifierFit <- MASS::lda(cellTypes ~ ., data = trainX)
+    message("Predicting cell types on test data")
+    predictedCellTypes <- predict(classifierFit, testX)$class
+  } else {
+    # Fallback to caret for other models
+    fitControl <- caret::trainControl(method = "none")
+    classifierFit <- caret::train(cellTypes ~ .,
+      data = trainX, method = model,
+      trControl = fitControl, trace = TRUE
+    )
+    message("Predicting cell types on test data")
+    predictedCellTypes <- predict(classifierFit, testX)
+  }
 
   return(predictedCellTypes)
 }
