@@ -220,13 +220,12 @@ computeElbow <- function(vals) {
 #' Train Cell Type Classifier
 #'
 #' Trains a cell type classification model and predicts cell types on test data.
-#' Uses MASS::lda directly for speed. For large datasets (>maxCells), automatically
-#' subsamples the training data while preserving class balance.
+#' Supports LDA, KNN, and multinomial logistic regression.
 #'
 #' @param trainX Data frame of training features with a \code{cellTypes} column.
 #' @param testX Data frame of test features (same columns as trainX minus cellTypes).
-#' @param model Character; the method to use. Currently supports "lda" (default).
-#' @param maxCells Integer; maximum training cells before subsampling. Default 200000.
+#' @param model Character; the method to use: "lda" (default), "knn", or "multinom".
+#' @param k Integer; number of neighbours for KNN. Default 5.
 #' @return Factor of predicted cell types for the test set.
 #' @importFrom MASS lda
 #' @export
@@ -253,39 +252,36 @@ computeElbow <- function(vals) {
 #'   model = "lda"
 #' )
 #' print(predicted)
-trainCellTypeClassifier <- function(trainX, testX, model = "lda", maxCells = 200000L) {
+trainCellTypeClassifier <- function(trainX, testX, model = "lda", k = 5L) {
 
-  message("Fitting cell type classification model")
+  message(sprintf("Fitting cell type classification model (method: %s)", model))
 
-  # Subsample if training data is too large (preserves class balance)
-  if (nrow(trainX) > maxCells) {
-    message(sprintf("  Subsampling from %d to %d cells for training", nrow(trainX), maxCells))
-    set.seed(1994)
-    trainX <- trainX %>%
-      dplyr::group_by(cellTypes) %>%
-      dplyr::slice_sample(prop = maxCells / nrow(trainX)) %>%
-      dplyr::ungroup() %>%
-      as.data.frame()
-    message(sprintf("  Subsampled to %d cells", nrow(trainX)))
-  }
+  labels <- trainX$cellTypes
+  trainFeatures <- trainX[, !names(trainX) %in% "cellTypes", drop = FALSE]
+  testFeatures <- testX[, !names(testX) %in% "cellTypes", drop = FALSE]
 
   if (model == "lda") {
-    # Direct MASS::lda — no caret overhead
     classifierFit <- MASS::lda(cellTypes ~ ., data = trainX)
-    message("Predicting cell types on test data")
-    predictedCellTypes <- predict(classifierFit, testX)$class
-  } else {
-    # Fallback to caret for other models
-    fitControl <- caret::trainControl(method = "none")
-    classifierFit <- caret::train(cellTypes ~ .,
-      data = trainX, method = model,
-      trControl = fitControl, trace = TRUE
+    predictedCellTypes <- predict(classifierFit, testFeatures)$class
+
+  } else if (model == "knn") {
+    predictedCellTypes <- class::knn(
+      train = as.matrix(trainFeatures),
+      test = as.matrix(testFeatures),
+      cl = labels,
+      k = k
     )
-    message("Predicting cell types on test data")
-    predictedCellTypes <- predict(classifierFit, testX)
+
+  } else if (model == "multinom") {
+    classifierFit <- nnet::multinom(cellTypes ~ ., data = trainX, trace = FALSE)
+    predictedCellTypes <- predict(classifierFit, testFeatures, type = "class")
+
+  } else {
+    stop(sprintf("Unknown model: '%s'. Use 'lda', 'knn', or 'multinom'.", model))
   }
 
-  return(predictedCellTypes)
+  message("Predicting cell types on test data")
+  return(factor(predictedCellTypes, levels = levels(labels)))
 }
 
 
