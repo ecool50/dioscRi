@@ -14,7 +14,8 @@ trainVAEModel(
   valData,
   originalDim = 27L,
   batchSize = 16,
-  hiddenSizes = NULL
+  hiddenSizes = NULL,
+  verbose = 1L
 )
 }
 \arguments{
@@ -33,6 +34,8 @@ trainVAEModel(
 \item{originalDim}{Integer; dimensionality of input, default is 27.}
 
 \item{batchSize}{Integer; batch size for training, default is 16.}
+
+\item{verbose}{Integer; training output verbosity. 0 = silent, 1 = progress bar, 2 = one line per epoch. Default is 1.}
 }
 \value{
 List containing the trained VAE model and encoder.
