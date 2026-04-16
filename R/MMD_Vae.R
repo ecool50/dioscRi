@@ -165,7 +165,8 @@ computeMMD <- function(x, y, sigmaSqr = 1.0) {
 #' vae <- vae_model$vae
 trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, seed = 1994,
                           lambda = 0.1, valData, originalDim = 27L, batchSize = 16,
-                          hiddenSizes = NULL, verbose = 1L) {
+                          hiddenSizes = NULL, verbose = 1L, earlyStop = TRUE,
+                          patience = 15L) {
     
     tensorflow::set_random_seed(seed = seed)
     
@@ -287,11 +288,14 @@ trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, 
     opt <- optimizer_rmsprop(learning_rate = lrSchedule, momentum = 0, centered = TRUE)
     vae %>% compile(optimizer = opt)
     
-    # Early stopping callback
-    esCallback <- callback_early_stopping(
-        min_delta = 1e-4, monitor = 'val_total_loss', mode = 'min',
-        patience = 15, verbose = verbose, restore_best_weights = TRUE
-    )
+    # Callbacks
+    cbs <- list()
+    if (earlyStop) {
+        cbs <- list(callback_early_stopping(
+            min_delta = 1e-4, monitor = 'val_total_loss', mode = 'min',
+            patience = patience, verbose = verbose, restore_best_weights = TRUE
+        ))
+    }
 
     # Fit model with validation data
     vae %>% fit(
@@ -300,7 +304,8 @@ trainVAEModel <- function(trainData, useMarkers, epochs = 80, latentDim = NULL, 
         epochs = epochs,
         validation_data = list(xVal, xVal),
         shuffle = TRUE,
-        verbose = verbose
+        verbose = verbose,
+        callbacks = cbs
     )
     
     return(list(vae = vae, encoder = encoder))

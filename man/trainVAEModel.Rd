@@ -15,7 +15,9 @@ trainVAEModel(
   originalDim = 27L,
   batchSize = 16,
   hiddenSizes = NULL,
-  verbose = 1L
+  verbose = 1L,
+  earlyStop = TRUE,
+  patience = 15L
 )
 }
 \arguments{
@@ -36,6 +38,10 @@ trainVAEModel(
 \item{batchSize}{Integer; batch size for training, default is 16.}
 
 \item{verbose}{Integer; training output verbosity. 0 = silent, 1 = progress bar, 2 = one line per epoch. Default is 1.}
+
+\item{earlyStop}{Logical; whether to use early stopping based on validation loss. Default is TRUE.}
+
+\item{patience}{Integer; number of epochs with no improvement before stopping. Only used when earlyStop = TRUE. Default is 15.}
 }
 \value{
 List containing the trained VAE model and encoder.
