@@ -204,10 +204,11 @@ visualiseModelTree(fit$fit, tree = tree_mg, type = "MG",
                    title = "Proportions + Marker Means (manual gating)")
 ```
 
-# Variants: proportions-only and means-only {.tabset}
+# Variants: proportions-only and means-only
 
 The same overlap-lasso machinery can be applied to either feature family
-on its own; only the design matrix and the group structure change.
+on its own; the two variants below differ from the combined fit only in
+the design matrix and the group structure.
 
 ## Proportions only
 

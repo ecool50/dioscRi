@@ -20,6 +20,8 @@ navbar:
         href: articles/dioscRi_introduction.html
       - text: BioHEART-CT walkthrough (manual gating)
         href: articles/dioscRi_manual_gating.html
+      - text: Adding clinical covariates
+        href: articles/dioscRi_with_clinical.html
 
 reference:
 - title: Reference sample selection and MMD-VAE normalisation

@@ -1,0 +1,193 @@
+---
+title: "Adding clinical covariates to the dioscRi model"
+author: "Elijah Willie"
+date: "`r Sys.Date()`"
+output:
+    BiocStyle::html_document:
+        toc: true
+vignette: >
+  %\VignetteIndexEntry{Adding clinical covariates to the dioscRi model}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r knitr-options, echo = FALSE, message = FALSE, warning = FALSE}
+library(knitr)
+opts_chunk$set(message = FALSE, warning = FALSE,
+               fig.align = "center", fig.width = 7, fig.height = 5)
+```
+
+```{r load-cache, echo = FALSE}
+.cache_file <- file.path(tools::R_user_dir("dioscRi", "cache"),
+                         "bioheart_vignette_cache.rds")
+.have_cache <- file.exists(.cache_file)
+if (.have_cache) {
+  .cache <- readRDS(.cache_file)
+  sce_train          <- .cache$sce_train
+  sce_test           <- .cache$sce_test
+  clinicaldata_train <- .cache$clinicaldata_train
+  clinicaldata_test  <- .cache$clinicaldata_test
+  useMarkers         <- .cache$useMarkers
+  nclust             <- .cache$nclust
+}
+```
+
+# When to use this workflow
+
+The overlapping group lasso in dioscRi accommodates additional non-cytometry
+covariates (age, sex, lab values, etc.) by appending them to the scaled
+design matrix and adding a corresponding group to the group structure. On
+the BioHEART-CT validation cohort, the published model that combines
+cytometry features with age and sex reaches **AUC = 0.87**, up from 0.83
+with cytometry alone.
+
+This vignette starts from the cached SCE objects produced by the
+[introduction vignette](dioscRi_introduction.html); render that one
+first to populate the cache.
+
+```{r show-cache-status, echo = FALSE, results = 'asis'}
+if (.have_cache) {
+  cat("The chunks below reuse the cache and run end-to-end.\n")
+} else {
+  cat("> The cache produced by the introduction vignette is not present;",
+      "render `vignette(\"dioscRi_introduction\")` first to populate it.",
+      "Chunks below have `eval = FALSE` until the cache is available.\n")
+}
+```
+
+```{r setup-libs, eval = .have_cache, message = FALSE}
+library(dioscRi)
+library(SingleCellExperiment)
+library(dplyr)
+library(tidyr)
+library(caret)
+```
+
+# Re-derive features from the cached SCEs
+
+The intro vignette saves the post-VAE SCEs along with their cluster
+labels. We can recompute the proportion + marker-mean features quickly.
+
+```{r features, eval = .have_cache}
+prop_logit_train <- computeFeatures(sce_train, featureType = "prop",
+                                    cellTypeCol = "clusters_norm",
+                                    sampleCol = "sample_id",
+                                    logit = TRUE, useMarkers = useMarkers)
+prop_logit_test  <- computeFeatures(sce_test,  featureType = "prop",
+                                    cellTypeCol = "clusters_norm",
+                                    sampleCol = "sample_id",
+                                    logit = TRUE, useMarkers = useMarkers)
+
+markerMeans_train <- computeFeatures(sce_train, featureType = "mean",
+                                     cellTypeCol = "clusters_norm",
+                                     sampleCol = "sample_id",
+                                     logit = TRUE, useMarkers = useMarkers)
+markerMeans_test  <- computeFeatures(sce_test,  featureType = "mean",
+                                     cellTypeCol = "clusters_norm",
+                                     sampleCol = "sample_id",
+                                     logit = TRUE, useMarkers = useMarkers)
+```
+
+# One-hot encode sex and align rows
+
+`Gender` is binary so we expand it to a column `GenderM` (1 = male,
+0 = female). The age column is already numeric.
+
+```{r encode-clinical, eval = .have_cache}
+clinicaldata_train <- clinicaldata_train |>
+  mutate(GenderM = as.integer(Gender == "M"))
+clinicaldata_test  <- clinicaldata_test  |>
+  mutate(GenderM = as.integer(Gender == "M"))
+
+# Match clinical rows to feature rows (rownames are sample ids)
+match_train <- match(rownames(prop_logit_train), clinicaldata_train$sample_id)
+match_test  <- match(rownames(prop_logit_test),  clinicaldata_test$sample_id)
+
+clinical_train <- clinicaldata_train[match_train, c("Age", "GenderM")] |>
+  as.matrix()
+clinical_test  <- clinicaldata_test [match_test,  c("Age", "GenderM")] |>
+  as.matrix()
+```
+
+# Build the design matrix with clinical columns
+
+The cytometry features are z-scaled; the clinical columns are appended
+*after* scaling so that their unscaled values pass through to the lasso.
+
+```{r design-matrix, eval = .have_cache}
+y_train <- {
+  y <- factor(clinicaldata_train[match_train, "Gensini_bin"])
+  as.numeric(levels(y))[y]
+}
+y_test <- {
+  y <- factor(clinicaldata_test[match_test, "Gensini_bin"])
+  as.numeric(levels(y))[y]
+}
+
+# scale cytometry features only
+cytof_train <- cbind(prop_logit_train, markerMeans_train) |> as.matrix()
+scaleVals <- preProcess(cytof_train, method = "scale")
+cytof_train <- predict(scaleVals, cytof_train) |> as.matrix()
+cytof_test  <- cbind(prop_logit_test, markerMeans_test) |> as.matrix()
+cytof_test  <- predict(scaleVals, cytof_test) |> as.matrix()
+
+# append age + sex
+X_train <- cbind(cytof_train, clinical_train)
+X_test  <- cbind(cytof_test,  clinical_test)
+
+dim(X_train); dim(X_test)
+```
+
+# Extend the group structure
+
+The cytometry groups come from the unsupervised hierarchy; we add one
+additional singleton group covering the two clinical columns so they
+enter the model as their own block.
+
+```{r groups, eval = .have_cache}
+trees  <- generateTree(features = prop_logit_train, method = "ward")
+tree   <- trees$tree
+groups <- generateGroups(tree = tree, nClust = nclust,
+                         proportions = prop_logit_train,
+                         means = markerMeans_train)
+
+clin_idx <- (ncol(cytof_train) + 1):ncol(X_train)  # Age, GenderM positions
+groups[[length(groups) + 1]] <- clin_idx
+groups <- lapply(groups, sort)
+```
+
+# Fit and evaluate
+
+```{r fit, eval = .have_cache}
+fit <- fitModel(xTrain = X_train, yTrain = y_train,
+                groups = groups, penalty = "grLasso", seed = 1994)
+```
+
+## Training AUC
+
+```{r train-auc, eval = .have_cache}
+plotAUC(fit$fit, X_train, y_train, title = "Train - AUC =")$plot
+```
+
+## Testing AUC
+
+```{r test-auc, eval = .have_cache}
+plotAUC(fit$fit, X_test, y_test, title = "Test (cytometry + Age + Sex) - AUC =")$plot
+```
+
+The manuscript reports AUC = 0.87 for this combination on the validation
+cohort. Expect single-run results within roughly [0.78, 0.90] because of
+MMD-VAE / FuseSOM stochasticity.
+
+# Inspect the non-zero clinical coefficients
+
+```{r coefs, eval = .have_cache}
+coefs <- coef(fit$fit)
+coefs[c("Age", "GenderM")]
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
