@@ -1,0 +1,111 @@
+---
+title: "dioscRi quickstart"
+author: "Elijah Willie"
+date: "`r Sys.Date()`"
+output:
+  BiocStyle::html_document:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{dioscRi quickstart}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+# Overview
+
+This vignette runs the dioscRi modelling stage end-to-end on the toy
+dataset bundled with the package (10 synthetic samples, 5 markers,
+5 cell types). The full BioHEART-CT walkthrough, including the
+MMD-VAE normalisation step, is in `vignette("dioscRi_introduction")`.
+
+```{r, message = FALSE}
+library(dioscRi)
+```
+
+# Bundled inputs
+
+The bundled `sample_*` objects already contain the pre-computed features
+that the dioscRi modelling stage consumes. The MMD-VAE normalisation and
+feature-construction steps that produced them are shown in the full
+vignette; here we skip straight to modelling.
+
+```{r}
+data(sample_data_logit)     # logit-transformed cell-type proportions
+data(sample_markerMeans)    # per-cell-type marker means
+data(sample_groups)         # overlapping group structure
+data(sample_clinicaldata)   # outcome + demographics
+
+dim(sample_data_logit)
+dim(sample_markerMeans)
+length(sample_groups)
+head(sample_clinicaldata)
+```
+
+# Build the design matrix
+
+Concatenate proportions and per-cell-type marker means, scale, and
+extract the binary outcome.
+
+```{r}
+X <- cbind(sample_data_logit, sample_markerMeans)
+X <- scale(X)
+y <- as.numeric(sample_clinicaldata$Outcome) - 1
+```
+
+# Fit the overlapping group lasso
+
+`fitModel()` searches \(\alpha \in \{0.1, 0.2, \ldots, 1.0\}\) over a
+fixed 10,000-point \(\lambda\) grid in \([0.05, 1]\), selecting the
+\((\alpha, \lambda)\) that minimises BIC.
+
+```{r}
+fit <- fitModel(
+  xTrain  = X,
+  yTrain  = y,
+  groups  = sample_groups,
+  penalty = "grLasso",
+  seed    = 1994
+)
+```
+
+# Inspect the non-zero coefficients
+
+```{r}
+coefs <- coef(fit$fit)
+coefs[coefs != 0]
+```
+
+# Predict and assess
+
+`plotAUC()` returns the per-sample predictions and a ROC plot.
+On a 10-sample toy dataset this is just to show the API; for real
+held-out evaluation see the full vignette.
+
+```{r}
+auc_res <- plotAUC(fit = fit$fit, xTest = X, yTest = y, title = "Toy AUC =")
+auc_res$auc
+head(auc_res$preds)
+auc_res$plot
+```
+
+# Where to go next
+
+* `vignette("dioscRi_introduction")` — full BioHEART-CT walkthrough
+  including reference-sample selection (`computeReferenceSample`),
+  MMD-VAE training (`trainVAEModel`), unsupervised clustering
+  (`trainCellTypeClassifier`), and downstream interpretation
+  (`getSigFeatures`, `plotSigFeatures`, `visualiseModelTree`).
+* The companion repository
+  [`ecool50/dioscRi_manuscript`](https://github.com/ecool50/dioscRi_manuscript)
+  contains the four datasets, scripts, and the v1.0.0 release used
+  in the paper.
+
+# Session info
+
+```{r}
+sessionInfo()
+```

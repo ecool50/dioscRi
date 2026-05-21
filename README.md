@@ -8,9 +8,16 @@ in `high parameter cytometry assays`.
 Overview
 --------
 
-**dioscRi** provides predictive modelling of `high parameter cytometry assays`.
-This pipeline uses the `MMMD-VAE` architecture coupled with `Group-Lasso` that incorporates cell type hierarchies for predicting clinical outcomes.
-We also provide functions for model visualisation and interpretation.
+**dioscRi** predicts patient-level clinical outcomes from high-parameter
+cytometry data (CyTOF, flow, IMC). Samples are normalised with an `MMD-VAE`,
+summarised as cell-type proportions and per-cell-type marker means, then
+modelled with an overlapping `Group-Lasso` over a cell-type hierarchy so
+that predictions come with interpretable feature importances at the cell-
+population and marker level.
+
+See `vignette("dioscRi_quickstart")` for an end-to-end example on the
+bundled toy dataset, or `vignette("dioscRi_introduction")` for the full
+BioHEART-CT walkthrough.
 
 Installation
 --------

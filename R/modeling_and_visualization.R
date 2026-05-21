@@ -378,7 +378,7 @@ plotSigFeatures <- function(stats, sigFeatures, outcome, title = "", type = "den
 #' @param title Character; plot title.
 #' @return A list with a ggplot object for the ROC curve and a data frame of predictions.
 #' @importFrom ROCR prediction performance
-#' @importFrom ggplot2 ggplot aes geom_line geom_abline labs theme_bw
+#' @importFrom ggplot2 ggplot aes geom_line geom_abline labs theme_bw ggtitle theme element_text
 #' @export
 #' @examples
 #' # Load sample data

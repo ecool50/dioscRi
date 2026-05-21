@@ -5,3 +5,5 @@
 inst/doc
 inst/.DS_Store
 dioscRi.Rproj
+docs/
+.DS_Store

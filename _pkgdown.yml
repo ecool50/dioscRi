@@ -1,0 +1,90 @@
+url: https://ecool50.github.io/dioscRi
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left:  [intro, articles, reference, news]
+    right: [search, github]
+  components:
+    intro:
+      text: Get started
+      href: articles/dioscRi_quickstart.html
+    articles:
+      text: Articles
+      menu:
+      - text: Quickstart (toy data)
+        href: articles/dioscRi_quickstart.html
+      - text: Full BioHEART-CT walkthrough
+        href: articles/dioscRi_introduction.html
+
+reference:
+- title: Reference sample selection and MMD-VAE normalisation
+  desc: >
+    Identify samples whose covariance structure is most central to the
+    cohort, then train an MMD-VAE for domain adaptation across batches.
+  contents:
+  - computeReferenceSample
+  - trainVAEModel
+  - batchCorrectOT
+  - batchCorrectOTPerCluster
+  - computeSlicedBarycenter
+  - computeSlicedBarycenterAutograd
+
+- title: Clustering and cell-type classification
+  desc: >
+    Cluster cells in the normalised latent space and apply the learned
+    cell-type assignment to new samples.
+  contents:
+  - trainCellTypeClassifier
+  - trainSWAEModel
+  - trainSWAEClustering
+  - trainSWAEClusteringFast
+  - trainSWAEEnhanced
+  - trainVQVAEClustering
+  - encodeSWAE
+  - decodeSWAE
+  - decodeSamples
+
+- title: Sample-level features and hierarchy
+  desc: >
+    Summarise each sample as cell-type proportions and per-cell-type
+    marker means, then build the cell-type hierarchy that defines
+    overlapping groups for the lasso.
+  contents:
+  - computeFeatures
+  - getProp
+  - generateTree
+  - generateGroups
+  - findChildren
+
+- title: Modelling
+  desc: >
+    Fit the overlapping group lasso over the cell-type hierarchy.
+  contents:
+  - fitModel
+
+- title: Interpretation and visualisation
+  desc: >
+    Evaluate predictions, surface significant features, and visualise
+    the learned cell-type hierarchy.
+  contents:
+  - plotAUC
+  - plotElbow
+  - plotSigFeatures
+  - visualiseModelTree
+  - getSigFeatures
+  - computeCellImportance
+
+- title: Bundled example data
+  desc: Toy datasets used by the quickstart vignette and function examples.
+  contents:
+  - sample_markers
+  - sample_cytof_data
+  - sample_cytof_sce
+  - sample_clinicaldata
+  - sample_data_logit
+  - sample_markerMeans
+  - sample_groups
+  - sample_tree

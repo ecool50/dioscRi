@@ -15,4 +15,4 @@ bibentry(bibtype = "Article",
          doi = "10.1101/2025.09.08.675022",
          url = "https://doi.org/10.1101/2025.09.08.675022",
          publisher = "Cold Spring Harbor Laboratory",
-         header = "To cite dioscRi in publications please use:")e
+         header = "To cite dioscRi in publications please use:")

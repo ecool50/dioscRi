@@ -1,2 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^CITATION\.cff$
+^RELEASE_NOTES_v1\.0\.0\.md$
