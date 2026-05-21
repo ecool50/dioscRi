@@ -40,7 +40,7 @@
     <div class="section level2">
       <h2 id="reference-sample-selection-and-mmd-vae-normalisation">Reference sample selection and MMD-VAE normalisation<a class="anchor" aria-label="anchor" href="#reference-sample-selection-and-mmd-vae-normalisation"></a></h2>
 
-      <div class="section-desc"><p>Identify samples whose covariance structure is most central to the cohort, then train an MMD-VAE for domain adaptation across batches.</p></div>
+      <div class="section-desc"><p>Identify samples whose covariance structure is most central to the cohort, then train an MMD-VAE for domain adaptation across batches and apply it to new samples.</p></div>
 
 
     </div><div class="section level2">
@@ -62,32 +62,14 @@
         <dd>Train a Variational Autoencoder (VAE) with MMD Regularization</dd>
       </dl><dl><dt>
 
-          <code><a href="batchCorrectOT.html">batchCorrectOT()</a></code>
+          <code><a href="decodeSamples.html">decodeSamples()</a></code>
 
         </dt>
-        <dd>Batch Correct Using Sliced Optimal Transport</dd>
-      </dl><dl><dt>
-
-          <code><a href="batchCorrectOTPerCluster.html">batchCorrectOTPerCluster()</a></code>
-
-        </dt>
-        <dd>Per-Cluster OT Batch Correction</dd>
-      </dl><dl><dt>
-
-          <code><a href="computeSlicedBarycenter.html">computeSlicedBarycenter()</a></code>
-
-        </dt>
-        <dd>Compute Sliced Wasserstein Barycenter</dd>
-      </dl><dl><dt>
-
-          <code><a href="computeSlicedBarycenterAutograd.html">computeSlicedBarycenterAutograd()</a></code>
-
-        </dt>
-        <dd>Compute Sliced Wasserstein Barycenter via Autograd</dd>
+        <dd>Decode New Samples Using VAE Decoder</dd>
       </dl></div><div class="section level2">
-      <h2 id="clustering-and-cell-type-classification">Clustering and cell-type classification<a class="anchor" aria-label="anchor" href="#clustering-and-cell-type-classification"></a></h2>
+      <h2 id="cell-type-classification">Cell-type classification<a class="anchor" aria-label="anchor" href="#cell-type-classification"></a></h2>
 
-      <div class="section-desc"><p>Cluster cells in the normalised latent space and apply the learned cell-type assignment to new samples.</p></div>
+      <div class="section-desc"><p>Transfer cluster (or manually gated) cell-type labels from training to test data using the MMD-VAE latent representation.</p></div>
 
 
     </div><div class="section level2">
@@ -101,54 +83,6 @@
 
         </dt>
         <dd>Train Cell Type Classifier using Caret</dd>
-      </dl><dl><dt>
-
-          <code><a href="trainSWAEModel.html">trainSWAEModel()</a></code>
-
-        </dt>
-        <dd>Train a Sliced Wasserstein Autoencoder (SWAE)</dd>
-      </dl><dl><dt>
-
-          <code><a href="trainSWAEClustering.html">trainSWAEClustering()</a></code>
-
-        </dt>
-        <dd>Train SWAE with Clustering Head</dd>
-      </dl><dl><dt>
-
-          <code><a href="trainSWAEClusteringFast.html">trainSWAEClusteringFast()</a></code>
-
-        </dt>
-        <dd>Train SWAE-Clustering (Fast Version)</dd>
-      </dl><dl><dt>
-
-          <code><a href="trainSWAEEnhanced.html">trainSWAEEnhanced()</a></code>
-
-        </dt>
-        <dd>Train Enhanced Sliced Wasserstein Autoencoder (SWAE) with Annealing</dd>
-      </dl><dl><dt>
-
-          <code><a href="trainVQVAEClustering.html">trainVQVAEClustering()</a></code>
-
-        </dt>
-        <dd>Train VQ-VAE with Clustering</dd>
-      </dl><dl><dt>
-
-          <code><a href="encodeSWAE.html">encodeSWAE()</a></code>
-
-        </dt>
-        <dd>Encode Data with Enhanced SWAE</dd>
-      </dl><dl><dt>
-
-          <code><a href="decodeSWAE.html">decodeSWAE()</a></code>
-
-        </dt>
-        <dd>Decode Latent Representations with Enhanced SWAE</dd>
-      </dl><dl><dt>
-
-          <code><a href="decodeSamples.html">decodeSamples()</a></code>
-
-        </dt>
-        <dd>Decode New Samples Using VAE Decoder</dd>
       </dl></div><div class="section level2">
       <h2 id="sample-level-features-and-hierarchy">Sample-level features and hierarchy<a class="anchor" aria-label="anchor" href="#sample-level-features-and-hierarchy"></a></h2>
 
@@ -166,12 +100,6 @@
 
         </dt>
         <dd>Compute Features for Group Lasso Model</dd>
-      </dl><dl><dt>
-
-          <code><a href="getProp.html">getProp()</a></code>
-
-        </dt>
-        <dd>Compute Cell Type Proportions</dd>
       </dl><dl><dt>
 
           <code><a href="generateTree.html">generateTree()</a></code>
@@ -226,12 +154,6 @@
         <dd>Plot AUC for Model Evaluation</dd>
       </dl><dl><dt>
 
-          <code><a href="plotElbow.html">plotElbow()</a></code>
-
-        </dt>
-        <dd>Plot Elbow Graph for BICs</dd>
-      </dl><dl><dt>
-
           <code><a href="plotSigFeatures.html">plotSigFeatures()</a></code>
 
         </dt>
@@ -248,12 +170,6 @@
 
         </dt>
         <dd>Get Significant Features from Group Lasso Model</dd>
-      </dl><dl><dt>
-
-          <code><a href="computeCellImportance.html">computeCellImportance()</a></code>
-
-        </dt>
-        <dd>Compute Cell Importance Scores</dd>
       </dl></div><div class="section level2">
       <h2 id="bundled-example-data">Bundled example data<a class="anchor" aria-label="anchor" href="#bundled-example-data"></a></h2>
 
