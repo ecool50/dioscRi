@@ -130,50 +130,61 @@ df_test <- fread('../../misc/Study_3_2019/all_batches_processed_mg_10K.csv',
 # Dataset transformation
 As is standard with cytometry data, the `arsinh` transformation will be applied.
 The arcsinh transformation is commonly used in cytometry data to manage its wide dynamic range and skewed distribution. It compresses large signal intensities while preserving low-intensity values and handles negative or near-zero values effectively, unlike logarithmic transformations. This transformation improves statistical analyses, such as clustering, and enhances visualization by clearly separating cell populations, ensuring consistency and interpretability across studies.
+
+We apply two parallel asinh streams: one without derandomisation (`derand = FALSE`) for the data that goes through the MMD-VAE, and one with derandomisation (`derand = TRUE`) for selecting reference samples by covariance structure.
 ```{r}
-# the training data
-df_train[, useMarkers]  <- cyCombine::transform_asinh(df_train[, useMarkers], 
-                                                markers = useMarkers, derand = TRUE)
+# training data: two asinh streams
+df_train_scaled <- df_train
+df_train[, useMarkers]        <- cyCombine::transform_asinh(df_train[, useMarkers],
+                                                            markers = useMarkers, derand = FALSE)
+df_train_scaled[, useMarkers] <- cyCombine::transform_asinh(df_train_scaled[, useMarkers],
+                                                            markers = useMarkers, derand = TRUE)
 
-colnames(df_train)[colnames(df_train) %in% useMarkers] <- 
-  gsub("_", "-", colnames(df_train)[colnames(df_train) %in% useMarkers])
+# testing data: same two streams
+df_test_scaled <- df_test
+df_test[, useMarkers]        <- cyCombine::transform_asinh(df_test[, useMarkers],
+                                                           markers = useMarkers, derand = FALSE)
+df_test_scaled[, useMarkers] <- cyCombine::transform_asinh(df_test_scaled[, useMarkers],
+                                                           markers = useMarkers, derand = TRUE)
 
-# the testing data
-df_test[, useMarkers]  <- cyCombine::transform_asinh(df_test[, useMarkers],
-                                                  markers = useMarkers, derand = FALSE)
-colnames(df_test)[colnames(df_test) %in% useMarkers] <- 
-  gsub("_", "-", colnames(df_test)[colnames(df_test) %in% useMarkers])
-
+# rename markers (underscores -> hyphens) on all four data frames
+for (nm in c("df_train", "df_train_scaled", "df_test", "df_test_scaled")) {
+  d <- get(nm)
+  hit <- colnames(d) %in% useMarkers
+  colnames(d)[hit] <- gsub("_", "-", colnames(d)[hit])
+  assign(nm, d)
+}
 useMarkers <- gsub("_", "-", useMarkers)
 allMarkers <- gsub("_", "-", allMarkers)
 ```
 
 
 # Range transformation for the MMD-VAE model
-Before fitting the MMD-VAE deep learning model, we need to transform the range of the dataset to [0,1]. Doing so stabilises the model and speeds up convergence. To do this, a range transformer is trained using the training data and then applied to both the training and the testing data.  
+Before fitting the MMD-VAE deep learning model, we transform the range of the dataset to [0,1]. We fit one range transformer on the derand=FALSE training stream (which will be fed to the VAE) and apply it to the derand=TRUE test stream so that the test data is range-normalised using the cleaner training bounds. A second range transformer is fit on the derand=TRUE training stream and used for reference-sample selection.
 ```{r}
-# train range transformer on the training data using the caret package
-preProcValues <- preProcess(df_train[, useMarkers], method = c("range"))
+# range transformer fit on the VAE-bound (derand=FALSE) training data
+preProcValues     <- preProcess(df_train[, useMarkers],        method = c("range"))
+# range transformer fit on the derand=TRUE training data (used for ref-sample selection)
+preProcValues_raw <- preProcess(df_train_scaled[, useMarkers], method = c("range"))
 
-# predict on the training data
-df_train[, useMarkers] <- predict(preProcValues, df_train[, useMarkers])
+df_train[, useMarkers]        <- predict(preProcValues,     df_train[, useMarkers])
+df_train_scaled[, useMarkers] <- predict(preProcValues_raw, df_train_scaled[, useMarkers])
 
-# predict on the testing data
-df_test[, useMarkers] <- predict(preProcValues, df_test[, useMarkers])
+# test: range-normalise the derand=TRUE values using the training (derand=FALSE) bounds
+df_test[, useMarkers]        <- predict(preProcValues,     df_test_scaled[, useMarkers])
+df_test_scaled[, useMarkers] <- predict(preProcValues_raw, df_test_scaled[, useMarkers])
 ```
- 
+
 # Get the reference samples for training and validating the MMD-VAE model
-To further speed up training of the MMD-VAE model, we select a set of $k$ samples which will be used for training. To select these samples, we firt compute the covariance matrix for each sample, next the pairwise frobenius norms of the covariances for all samples are computed. Finally the top $k$ samples are selected by averaging all the frobenious norms for each sample and returning the top $k$ samples with the minimum average. We set $k$ to $2$ in our analyses. 
+To further speed up training of the MMD-VAE model, we select a set of $k$ samples which will be used for training. To select these samples, we first compute the covariance matrix for each sample; next the pairwise Frobenius norms of the covariances for all samples are computed; finally the top $k$ samples are selected by averaging all the Frobenius norms for each sample and returning the top $k$ with the minimum average. We set $k$ to $2$ in our analyses. Reference selection is performed on the derand=TRUE stream so that the per-sample covariances are computed on cleanly-jittered data.
 
 ```{r}
-# compute the reference samples
-res_ind <- computeReferenceSample(df_train, useMarkers, N = 2)
+# compute the reference samples on the derand=TRUE stream
+res_ind <- computeReferenceSample(df_train_scaled, useMarkers, N = 2)
 
-# get the training samples
-train_dat <- df_train[which(df_train$sample_id %in% c(res_ind$topNSamples)), ]
-
-# get the validation samples
-val_dat <- df_train[which(df_train$sample_id %in% c(res_ind$bottomNSamples)), ]
+# get the training and validation samples FROM the derand=FALSE stream (the one we feed to the VAE)
+train_dat <- df_train[df_train$sample_id %in% res_ind$topNSamples, ]
+val_dat   <- df_train[df_train$sample_id %in% res_ind$bottomNSamples, ]
 ```
 
 
@@ -181,22 +192,22 @@ val_dat <- df_train[which(df_train$sample_id %in% c(res_ind$bottomNSamples)), ]
 For training a transferable normalisation model, we use the Maximum Mean Discrepancy Variational Autoencoder (MMD-VAE) which uses the MMD loss instead of the KL-divergence loss. For added regularisation, we set $\lambda = 0.01$. The model is fit with batch size of $32$ over $100$ epochs.
 ```{r}
 batch_size = 32L
-vae_model <- trainVAEModel(trainData = train_dat[, useMarkers], batchSize = batch_size, 
+vae_model <- trainVAEModel(trainData = train_dat[, useMarkers], batchSize = batch_size,
                              useMarkers = useMarkers, epochs = 100, lambda = 0.01,
                              valData = val_dat[, useMarkers])
 ```
 
 # Normalise both the training and testing using the fitted VAE model
-After training the normalisation model, both the training and the testind data are normalised using the trained model
+After training the normalisation model, both the training and the testing data are normalised using the trained model. We pass the derand=FALSE streams (`df_train` and `df_test`) through the encoder/decoder.
 ```{r}
-train_decoded <- decodeSamples(newSamples = as.matrix(df_train[, useMarkers]), 
+train_decoded <- decodeSamples(newSamples = as.matrix(df_train[, useMarkers]),
                                 vae = vae_model$vae)
 df_norm <- train_decoded[[1]]
 
 colnames(df_norm) <- useMarkers
 
 
-test_decoded <- decodeSamples(newSamples = as.matrix(df_test[, useMarkers]), 
+test_decoded <- decodeSamples(newSamples = as.matrix(df_test[, useMarkers]),
                                vae = vae_model$vae)
 df_test_norm <- test_decoded[[1]]
 
