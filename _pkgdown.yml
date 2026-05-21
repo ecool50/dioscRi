@@ -25,29 +25,19 @@ reference:
 - title: Reference sample selection and MMD-VAE normalisation
   desc: >
     Identify samples whose covariance structure is most central to the
-    cohort, then train an MMD-VAE for domain adaptation across batches.
+    cohort, then train an MMD-VAE for domain adaptation across batches
+    and apply it to new samples.
   contents:
   - computeReferenceSample
   - trainVAEModel
-  - batchCorrectOT
-  - batchCorrectOTPerCluster
-  - computeSlicedBarycenter
-  - computeSlicedBarycenterAutograd
+  - decodeSamples
 
-- title: Clustering and cell-type classification
+- title: Cell-type classification
   desc: >
-    Cluster cells in the normalised latent space and apply the learned
-    cell-type assignment to new samples.
+    Transfer cluster (or manually gated) cell-type labels from training
+    to test data using the MMD-VAE latent representation.
   contents:
   - trainCellTypeClassifier
-  - trainSWAEModel
-  - trainSWAEClustering
-  - trainSWAEClusteringFast
-  - trainSWAEEnhanced
-  - trainVQVAEClustering
-  - encodeSWAE
-  - decodeSWAE
-  - decodeSamples
 
 - title: Sample-level features and hierarchy
   desc: >
@@ -56,7 +46,6 @@ reference:
     overlapping groups for the lasso.
   contents:
   - computeFeatures
-  - getProp
   - generateTree
   - generateGroups
   - findChildren
@@ -73,11 +62,9 @@ reference:
     the learned cell-type hierarchy.
   contents:
   - plotAUC
-  - plotElbow
   - plotSigFeatures
   - visualiseModelTree
   - getSigFeatures
-  - computeCellImportance
 
 - title: Bundled example data
   desc: Toy datasets used by the quickstart vignette and function examples.
@@ -90,3 +77,20 @@ reference:
   - sample_markerMeans
   - sample_groups
   - sample_tree
+
+- title: internal
+  contents:
+  - batchCorrectOT
+  - batchCorrectOTPerCluster
+  - computeSlicedBarycenter
+  - computeSlicedBarycenterAutograd
+  - trainSWAEModel
+  - trainSWAEClustering
+  - trainSWAEClusteringFast
+  - trainSWAEEnhanced
+  - trainVQVAEClustering
+  - encodeSWAE
+  - decodeSWAE
+  - getProp
+  - plotElbow
+  - computeCellImportance
