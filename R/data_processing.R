@@ -636,7 +636,7 @@ computeFeatures <- function(sce, featureType = "prop", cellTypeCol = "clusters",
       tidyr::pivot_longer(-c(sample_id, !!dplyr::sym(cellTypeCol)), names_to = "markers") %>%
       tidyr::pivot_wider(names_from = c(!!dplyr::sym(cellTypeCol), markers), values_from = value) %>%
       tibble::column_to_rownames("sample_id") %>%
-      dplyr::mutate(across(everything(), ~ replace_na(., 0)))
+      dplyr::mutate(dplyr::across(dplyr::everything(), ~ tidyr::replace_na(., 0)))
   }
 
   return(features)

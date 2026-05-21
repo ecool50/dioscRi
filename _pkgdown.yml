@@ -16,8 +16,10 @@ navbar:
       menu:
       - text: Quickstart (toy data)
         href: articles/dioscRi_quickstart.html
-      - text: Full BioHEART-CT walkthrough
+      - text: BioHEART-CT walkthrough (unsupervised)
         href: articles/dioscRi_introduction.html
+      - text: BioHEART-CT walkthrough (manual gating)
+        href: articles/dioscRi_manual_gating.html
 
 reference:
 - title: Reference sample selection and MMD-VAE normalisation

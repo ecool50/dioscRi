@@ -13,7 +13,8 @@ vignette: >
 
 ```{r knitr-options, echo=FALSE, message=FALSE, warning=FALSE}
 library(knitr)
-# opts_chunk$set(fig.align = 'center', fig.width = 6, fig.height = 5, dev = 'png')
+opts_chunk$set(message = FALSE, warning = FALSE,
+               fig.align = "center", fig.width = 7, fig.height = 5)
 ```
 
 # Installation
@@ -71,9 +72,7 @@ In this demonstration, we will utilize the dioscRi framework to model CAD status
 
 # Load in required libraries
 First we need to load in the required libraries for the models we will be fitting
-```{r}
-rm(list = ls())
-gc()
+```{r results='hide'}
 suppressPackageStartupMessages({
     library(dioscRi)
     library(keras3)
@@ -194,7 +193,8 @@ For training a transferable normalisation model, we use the Maximum Mean Discrep
 batch_size = 32L
 vae_model <- trainVAEModel(trainData = train_dat[, useMarkers], batchSize = batch_size,
                              useMarkers = useMarkers, epochs = 100, lambda = 0.01,
-                             valData = val_dat[, useMarkers])
+                             valData = val_dat[, useMarkers], verbose = 0L,
+                             earlyStop = FALSE)
 ```
 
 # Normalise both the training and testing using the fitted VAE model
@@ -287,6 +287,25 @@ clinicaldata_test <- colData(sce_test) %>%
   distinct()
 ```
 
+```{r cache-for-mg-vignette, echo=FALSE}
+# Persist the post-VAE / post-clustering objects so the manual-gating
+# vignette (vignette("dioscRi_manual_gating")) can reuse them and render
+# real plots without retraining the MMD-VAE a second time per build.
+.cache_dir <- tools::R_user_dir("dioscRi", "cache")
+dir.create(.cache_dir, recursive = TRUE, showWarnings = FALSE)
+saveRDS(
+  list(
+    sce_train          = sce_train,
+    sce_test           = sce_test,
+    clinicaldata_train = clinicaldata_train,
+    clinicaldata_test  = clinicaldata_test,
+    useMarkers         = useMarkers,
+    nclust             = nclust
+  ),
+  file.path(.cache_dir, "bioheart_vignette_cache.rds")
+)
+```
+
 
 # Compute feature sets
 Next, the logit of cell type proportions in each sample and the marker means per cell type in each sample are computed. Both of these features with be used to train a model predict `CAD` status.
@@ -337,7 +356,6 @@ tree <- trees$tree
 order <- trees$order
 groups <- generateGroups(tree = tree, nClust = nclust, 
                          proportions = prop_logit_train, means = markerMeanCellType_train)
-head(groups)
 ```
 
 # Process training and testing data
@@ -375,6 +393,13 @@ fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups,
 
 # Assess model performace
 To assess how well the model is performing, we use the ROC-AUC curve.
+
+Because the MMD-VAE is randomly initialised and FuseSOM clustering
+includes a stochastic SOM step, expect the test AUC to land in roughly
+[0.70, 0.85] across re-runs. The published point estimate (0.83 for the
+combined model on the BioHEART-CT validation cohort) is a single draw
+from this distribution; the 95% bootstrap confidence interval reported
+in the manuscript is [0.70, 0.94].
 
 ## Training AUC
 ```{r}
@@ -415,433 +440,53 @@ plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin
     xlab("Gensini bin")
 ```
 
-# Look at just the proportions
-We can repeat the same experiment, but just looking at the proportions. This is done by fitting the overlapping group lasso model to the just logit of the cell type proportions. To do this, we just modify the training and testing inputs, as well as the grouping structure.
+# Variants: proportions-only and means-only {.tabset}
 
-## Set up the training and testing data
-```{r}
-# training data
-X_train <- prop_logit_train %>%
-  as.matrix()
+The same overlap-lasso machinery can be applied to either feature family on
+its own. The tabs below show the two variants; they differ only in the design
+matrix and the group structure passed to `fitModel()`.
 
-# testing data
-X_test <- prop_logit_test %>%
-  as.matrix()
-```
+## Proportions only
 
-## Set up the groups
-The groups will just be from the hierarchical clustering
-```{r}
-groups <- generateGroups(tree = tree, nClust = 11, proportions = prop_logit_train,
-                         means = markerMeanCellType_train, type = "prop")
-head(groups)
-```
-
-## Fit Overlap model
-Again fit the overlap model similarly as before
-```{r}
-groups <- lapply(groups, sort)
-fit <- fitModel(xTrain = X_train, yTrain = y_train,
-                groups = groups, penalty = "grLasso", seed = 1994)
-```
-
-## Predict on test data
-```{r}
-test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, 
-                    title = "Test - Proportions AUC =")
-test_auc$plot
-```
-
-## Visualise and assess  model outputs
-```{r, fig.height=6, fig.width=8}
-visualiseModelTree(fit = fit$fit, tree = tree, type = "cluster", 
-                   trainingData = X_train, heatmap = FALSE)
-```
-
-Similarly, we can look at the distributions of these features and assess their statistical significance.
-```{r, eval=T, fig.height=10, fig.width=16}
-# CCR2 (OR 1.12), CCR4 (OR 1.08), CD38 and CD45RO (OR 1.13), HLA-DR (OR 1.06), and Ki67 (1.22)
-stats_prop <- getSigFeatures(fit$fit, type = 'prop',  prop = prop_logit_train,
-                         mean = markerMeanCellType_train, clinicalData = clinicaldata_train, 
-                         outcome = "Gensini_bin")
-
-sigFeatures <- stats_prop$sigFeatures
-stats <- stats_prop$stats
-
-```
-
-```{r, fig.height=6, fig.width=8}
-
-plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", type = "boxplots")
-```
-
-# Look at just the means
-We can perform the same experiment for just the marker means per cell type. This is done by fitting the overlapping group lasso model to the just the marker means per cell type. To do this, we just modify the training and testing inputs, as well as the grouping structure.
-
-## Set up the training and testing data
-```{r}
-# Combine all input data matrices
-X_train <- markerMeanCellType_train %>%
-  as.matrix()
-
-X_test <- markerMeanCellType_test %>%
-  as.matrix()
-```
-
-## Set up the grouping structure
-Since this is the marker means per cell type, each feature will be in it's own group.
-```{r}
-groups <- generateGroups(tree = tree, nClust = 11, proportions = prop_logit_train,
-                         means = markerMeanCellType_train, type = "mean")
-head(groups)
-```
-
-## Fit Overlap model
-Fit the model similar to before
-```{r}
-fit <- fitModel(xTrain = X_train, yTrain = y_train,
-                groups = groups, penalty = "grLasso", seed = 1994)
-```
-
-## Predict on test data
-```{r}
-test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, 
-                    title = "Test - Means AUC =")
-test_auc$plot
-```
-
-## Visualise and assess  model outputs
-```{r, fig.height=6, fig.width=8}
-dioscRi:::plotHeatmap(fit$fit, order = order, type = "cluster")
-```
-
-Lastly, we can look at the distributions of these features and assess their statistical significance.
-```{r, eval=T}
-stats_mean <- getSigFeatures(fit$fit, type = 'mean',  
-                         mean = markerMeanCellType_train, clinicalData = clinicaldata_train, 
-                         outcome = "Gensini_bin")
-
-sigFeatures <- stats_mean$sigFeatures
-stats <- stats_mean$stats
-```
-
-```{r, fig.height=10, fig.width=16}
-plotSigFeatures(stats = stats, sigFeatures = sigFeatures, outcome = "Gensini bin", 
-                type = "boxplots") + 
-    xlab("Gensini bin")
-```
-
-# Clinical data
-We can also add clincical data including Age and Sex. Below is an example where we add the Age and Sex clinical info to the full model
-
-## For the training set
-```{r}
-encoded_gender_train <- model.matrix(~Gender-1, data=clinicaldata_train)
-clinicaldata_train <- cbind(clinicaldata_train, encoded_gender_train)
-
-Age <- factor(clinicaldata_train[match(row_names_train,clinicaldata_train$sample_id),
-                                      "Age"])
-GenderM <- factor(clinicaldata_train[match(row_names_train,clinicaldata_train$sample_id),
-                                      c("GenderM")])
-
-clinicaldata_info_train <- cbind(Age, GenderM)
-```
-
-## For the testing set
-```{r}
-encoded_gender_test <- model.matrix(~Gender-1, data=clinicaldata_test)
-clinicaldata_test <- cbind(clinicaldata_test, encoded_gender_test)
-
-Age_test <- factor(clinicaldata_test[match(row_names_test,clinicaldata_test$sample_id),
-                                      "Age"])
-GenderM_test <- factor(clinicaldata_test[match(row_names_test,clinicaldata_test$sample_id),
-                                      c("GenderM")])
-
-clinicaldata_info_test <- cbind(Age_test, GenderM_test)
-```
-
-# Add the clinical data to the
-```{r, eval=T}
-trees <- generateTree(features = prop_logit_train, method = "ward")
-tree <- trees$tree
-order <- trees$order
-groups <- generateGroups(tree = tree, nClust = nclust, 
-                         proportions = prop_logit_train, means = markerMeanCellType_train)
-groups[[length(groups) + 1]] <- 309:310
-```
+The groups come directly from the cell-type hierarchy.
 
 ```{r}
-# Combine all input data matrices
-X_train <- cbind(prop_logit_train, markerMeanCellType_train) 
-  
-  # Scale the combined data
-scaleVals <- preProcess(X_train, method = c('scale'))
-X_train <- predict(scaleVals, X_train) %>%
-    as.matrix()
-X_train <- cbind(X_train, clinicaldata_info_train)
+X_train_p <- as.matrix(prop_logit_train)
+X_test_p  <- as.matrix(prop_logit_test)
+
+groups_p <- generateGroups(tree = tree, nClust = nclust,
+                           proportions = prop_logit_train,
+                           means = markerMeanCellType_train, type = "prop")
+groups_p <- lapply(groups_p, sort)
+
+fit_p <- fitModel(xTrain = X_train_p, yTrain = y_train,
+                  groups = groups_p, penalty = "grLasso", seed = 1994)
+plotAUC(fit_p$fit, X_test_p, y_test, title = "Test - Proportions AUC =")$plot
 ```
 
-## Testing
-```{r}
-X_test <- cbind(prop_logit_test, markerMeanCellType_test) %>%
-  as.matrix()
-# colnames(X_test_study_3) <- janitor::make_clean_names(colnames(X_test_study_3))
-X_test <- predict(scaleVals, X_test)
-X_test <- cbind(X_test, clinicaldata_info_test)
-```
+## Means only
 
-## Fit Overlap model
-```{r}
-fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups, 
-                penalty = "grLasso", seed = 1994, alpha = NULL)
-```
-
-## Predict on the training data
-```{r}
-train_auc <- plotAUC(fit = fit$fit, xTest = X_train, yTest = y_train, title = "Train - AUC =")
-train_auc$plot
-```
-
-## Predict on test data
-```{r}
-test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, title = "Test - AUC =")
-test_auc$plot
-```
-
-# Manual gating
-Next, we can perform the same experiment with the manually gated cell types. Since we already have the processed data, we can focus on
-the manually gated cell types.
-
-# Predict manual gating cell types
-First we need to predict the manually gated cell types.
-```{r}
-# set up the training data
-train_x <- reducedDim(sce_train, type = "VAE") %>%
-  mutate(cellTypes = as.factor(sce_train$mg_cell_type_distinct))
-
-# setup th testing data
-test_x <- reducedDim(sce_test, type = "VAE")
-
-# train the model
-df_test_clusters <- trainCellTypeClassifier(trainX = train_x, testX = test_x, model = 'lda')
-
-# update the clusters for the test data
-sce_test$clusters_mg <- df_test_clusters
-```
-
-
-# Compute training features
-## Proportions
-```{r}
-sce_train <- sce_train[, sce_train$mg_cell_type_distinct != "other"]
-sce_train <- sce_train[, sce_train$mg_cell_type_distinct != ""]
-
-data_logit_train <- computeFeatures(sce = sce_train, featureType = 'prop', 
-                              cellTypeCol = 'mg_cell_type_distinct', 
-                              sampleCol = 'sample_id', 
-                              logit = TRUE, useMarkers = useMarkers)
-
-data_train <- computeFeatures(sce = sce_train, featureType = 'prop', 
-                              cellTypeCol = 'mg_cell_type_distinct', sampleCol = 'sample_id', 
-                              logit = FALSE, useMarkers = useMarkers)
-
-row_names_train <- rownames(data_logit_train)
-y_train <- factor(clinicaldata_train[match(row_names_train,clinicaldata_train$sample_id),
-                                      "Gensini_bin"])
-y_train <- as.numeric(levels(y_train))[y_train]
-```
-
-## Means
-```{r, eval=T}
-markerMeanCellType_train <- computeFeatures(sce = sce_train, featureType = 'mean', assay = "norm",
-                              cellTypeCol = 'mg_cell_type_distinct', sampleCol = 'sample_id', 
-                              logit = TRUE, useMarkers = useMarkers)
-```
-
-
-## Compute features on test
-## Proportions
-```{r}
-sce_test <- sce_test[, sce_test$clusters_mg != "other"]
-sce_test <- sce_test[, sce_test$clusters_mg != ""]
-sce_test$clusters_mg <- droplevels(sce_test$clusters_mg)
-
-data_logit_test <- computeFeatures(sce = sce_test, featureType = 'prop', 
-                              cellTypeCol = 'clusters_mg', sampleCol = 'sample_id', 
-                              logit = TRUE, useMarkers = useMarkers)
-
-# setup response as well
-row_names_test <- rownames(data_logit_test)
-y_test <- factor(clinicaldata_test[match(row_names_test,clinicaldata_test$sample_id),
-                                      "Gensini_bin"])
-y_test <- as.numeric(levels(y_test))[y_test]
-```
-
-## Means
-```{r, eval=T}
-markerMeanCellType_test <- computeFeatures(sce = sce_test, featureType = 'mean',  assay = "norm",
-                              cellTypeCol = 'clusters_mg', sampleCol = 'sample_id', 
-                              logit = TRUE, useMarkers = useMarkers)
-```
-
-# Generate Tree
-Here we generate a hierarchical tree for the manually gated data.
-```{r, eval=T}
-root <- Node$new("Root")
-  myeloid <- root$AddChild('Myeloid_logit')
-    `14+ monos` <- myeloid$AddChild('14+ monos_logit')
-    `16+ monos` <- myeloid$AddChild('16+ monos_logit') 
-    pDCs <- myeloid$AddChild('pDCs_logit')
-    `CD141+ DCs` <- myeloid$AddChild('CD141+ DCs_logit')
-    `CD1c+ DCs` <- myeloid$AddChild('CD1c+ DCs_logit')
-  NK <- root$AddChild('NK_logit')
-  `B cells` <- root$AddChild('B cells_logit')
-  CD3 <- root$AddChild('CD3_logit')
-    CD8hi <- CD3$AddChild('CD8hi_logit')
-    CD8lo <- CD3$AddChild('CD8lo_logit')
-    CD4 <- CD3$AddChild('CD4_logit')
-      `CD4+ Tconv` <- CD4$AddChild('CD4+ Tconv_logit')
-      `CD4+ Treg` <- CD4$AddChild('CD4+ Treg_logit')
-```
-
-# Generate grouping structures
-```{r}
-nclust <- ncol(data_logit_train)
-order <- as.phylo(root)$tip.label
-tree <- findChildren(ggtree(as.phylo(root),
-                            ladderize = FALSE, layout = 'dendrogram'))
-
-groups <- generateGroups(tree = tree, nClust = nclust, 
-                         proportions = data_logit_train, means = markerMeanCellType_train)
-```
-
-# Process training and testing data
-## Training
-```{r}
-# Combine all input data matrices
-X_train <- cbind(data_logit_train, markerMeanCellType_train) 
-  
-  # Scale the combined data
-scaleVals <- preProcess(X_train, method = c('scale'))
-X_train <- predict(scaleVals, X_train) %>%
-    as.matrix()
-```
-
-## Testing
-```{r}
-X_test <- cbind(data_logit_test, markerMeanCellType_test) %>%
-  as.matrix()
-
-X_test <- predict(scaleVals, X_test)
-```
-
-## Fit Overlap model
-```{r}
-fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups, 
-                penalty = "grLasso", seed = 1994, alpha = NULL)
-```
-
-## Predict on the training data
-```{r}
-train_auc <- plotAUC(fit = fit$fit, xTest = X_train, yTest = y_train, title = "Train - AUC =")
-train_auc$plot
-```
-
-## Predict on test data
-```{r}
-test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, title = "Test - AUC =")
-test_auc$plot
-```
-
-# Visualise Resulting Tree
-```{r, fig.height=8, fig.width=12}
-visualiseModelTree(fit = fit$fit, tree = tree, type = "MG", trainingData = X_train,
-                   nodesToRemove =  c("Root", "Myeloid", "CD3", "CD4"), title = "Proportions + Marker Means")
-```
-
-# Look at just the proportions
-## Training
-```{r}
-# Combine all input data matrices
-X_train <- data_logit_train
-  
-# Scale the combined data
-scaleVals <- preProcess(X_train, method = c('scale'))
-X_train <- predict(scaleVals, X_train) %>%
-    as.matrix()
-```
-
-## Testing
-```{r}
-X_test<- data_logit_test %>%
-  as.matrix()
-X_test <- predict(scaleVals, X_test)
-```
+Each per-cell-type marker mean is in its own group.
 
 ```{r}
-groups <- generateGroups(tree = tree, nClust = nclust, proportions = data_logit_train,
-                         means = markerMeanCellType, type = "prop")
+X_train_m <- as.matrix(markerMeanCellType_train)
+X_test_m  <- as.matrix(markerMeanCellType_test)
+
+groups_m <- generateGroups(tree = tree, nClust = nclust,
+                           proportions = prop_logit_train,
+                           means = markerMeanCellType_train, type = "mean")
+
+fit_m <- fitModel(xTrain = X_train_m, yTrain = y_train,
+                  groups = groups_m, penalty = "grLasso", seed = 1994)
+plotAUC(fit_m$fit, X_test_m, y_test, title = "Test - Means AUC =")$plot
 ```
 
-## Fit Overlap model
-```{r}
-fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups, 
-                penalty = "grLasso", seed = 1994)
-```
+# Next steps
 
-## Predict on test data
-```{r}
-test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, title = "Test - Proportions AUC =")
-test_auc$plot
-```
-
-## Look at tree plot
-```{r, fig.height=6, fig.width=8}
-visualiseModelTree(fit = fit$fit, tree = tree, type = "MG", trainingData = X_train,
-                   nodesToRemove =  c("Root", "Myeloid", "CD3", "CD4"), heatmap = FALSE)
-```
-
-# Look at just the means
-## Training
-```{r}
-# Combine all input data matrices
-X_train <- markerMeanCellType_train
-  
-# Scale the combined data
-scaleVals <- preProcess(X_train, method = c('scale'))
-X_train <- predict(scaleVals, X_train) %>%
-    as.matrix()
-```
-
-## Testing
-```{r}
-X_test <- markerMeanCellType_test %>%
-  as.matrix()
-X_test <- predict(scaleVals, X_test)
-```
-
-```{r}
-groups <- as.list(seq (1,ncol(markerMeanCellType_train),1)) 
-```
-
-## Fit Overlap model
-```{r}
-fit <- fitModel(xTrain = X_train, yTrain = y_train, groups = groups, 
-                penalty = "grLasso", seed = 1994)
-```
-
-## Predict on test data
-```{r}
-test_auc <- plotAUC(fit = fit$fit, xTest = X_test, yTest = y_test, title = "Test - Means AUC =")
-test_auc$plot
-```
-
-
-```{r, fig.height=6, fig.width=8}
-order <- gsub("_logit", "", order)
-order <- gsub("_", " ", order)
-dioscRi:::plotHeatmap(fit$fit, type = "MG", order = order)
-```
+The unsupervised-clustering workflow shown above defines cell types from
+the data via FuseSOM. If you instead have manually gated populations from
+domain experts, see `vignette("dioscRi_manual_gating")` for the
+straightforward swap.
 
 # Session Info
 ```{r}

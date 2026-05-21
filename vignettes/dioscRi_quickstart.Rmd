@@ -94,7 +94,7 @@ auc_res$plot
 
 # Where to go next
 
-* `vignette("dioscRi_introduction")` — full BioHEART-CT walkthrough
+* `vignette("dioscRi_introduction")`: full BioHEART-CT walkthrough
   including reference-sample selection (`computeReferenceSample`),
   MMD-VAE training (`trainVAEModel`), unsupervised clustering
   (`trainCellTypeClassifier`), and downstream interpretation

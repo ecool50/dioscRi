@@ -1,0 +1,250 @@
+---
+title: "dioscRi with manually gated cell types"
+author: "Elijah Willie"
+date: "`r Sys.Date()`"
+output:
+    BiocStyle::html_document:
+        toc: true
+vignette: >
+  %\VignetteIndexEntry{dioscRi with manually gated cell types}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r knitr-options, echo = FALSE, message = FALSE, warning = FALSE}
+library(knitr)
+opts_chunk$set(message = FALSE, warning = FALSE,
+               fig.align = "center", fig.width = 7, fig.height = 5)
+```
+
+```{r load-cache, echo = FALSE}
+.cache_file <- file.path(tools::R_user_dir("dioscRi", "cache"),
+                         "bioheart_vignette_cache.rds")
+.have_cache <- file.exists(.cache_file)
+if (.have_cache) {
+  .cache <- readRDS(.cache_file)
+  sce_train          <- .cache$sce_train
+  sce_test           <- .cache$sce_test
+  clinicaldata_train <- .cache$clinicaldata_train
+  clinicaldata_test  <- .cache$clinicaldata_test
+  useMarkers         <- .cache$useMarkers
+  nclust             <- .cache$nclust
+}
+```
+
+# When to use this workflow
+
+The [introduction vignette](dioscRi_introduction.html) defines cell types
+from the data via FuseSOM clustering on the MMD-VAE latent space. If you
+already have manually gated populations from domain experts (as in the
+BioHEART-CT cohort), you can swap those in with three small changes to
+the introduction pipeline:
+
+1. Replace the unsupervised cluster label with the manual-gating column
+   when training the LDA cell-type classifier and computing features.
+2. Replace the data-driven tree (`generateTree()`) with a hand-built
+   `data.tree::Node` reflecting the gating hierarchy.
+3. Filter out cells whose manual label is `"other"` or `""` before
+   computing features.
+
+Everything else (MMD-VAE training, feature scaling, `fitModel()`,
+`plotAUC()`, interpretation) is identical.
+
+```{r show-cache-status, echo = FALSE, results = 'asis'}
+if (.have_cache) {
+  cat("This page reuses the MMD-VAE-trained SCE objects produced by the",
+      "introduction vignette, so the chunks below run end-to-end and",
+      "produce real plots.\n")
+} else {
+  cat("> The chunks below have `eval = FALSE` because the cache produced",
+      "by the introduction vignette is not present. Render",
+      "`vignette(\"dioscRi_introduction\")` first to populate the cache,",
+      "then rebuild this article to see real plots.\n")
+}
+```
+
+```{r setup-libs, eval = .have_cache, message = FALSE}
+library(dioscRi)
+library(SingleCellExperiment)
+library(dplyr)
+library(tidyr)
+library(caret)
+library(data.tree)
+library(data.table)
+library(ape)
+library(ggtree)
+```
+
+# Step 1: transfer manual-gating labels to the test set
+
+```{r transfer-mg, eval = .have_cache}
+train_x <- reducedDim(sce_train, type = "VAE") |>
+  mutate(cellTypes = as.factor(sce_train$mg_cell_type_distinct))
+test_x  <- reducedDim(sce_test, type = "VAE")
+
+sce_test$clusters_mg <- trainCellTypeClassifier(
+  trainX = train_x, testX = test_x, model = "lda"
+)
+```
+
+# Step 2: drop "other" / "" cells and compute features on the gating labels
+
+```{r mg-features, eval = .have_cache}
+sce_train <- sce_train[, !(sce_train$mg_cell_type_distinct %in% c("other", ""))]
+sce_test  <- sce_test [, !(sce_test$clusters_mg          %in% c("other", ""))]
+sce_test$clusters_mg <- droplevels(sce_test$clusters_mg)
+
+# proportions
+prop_logit_train <- computeFeatures(sce_train, featureType = "prop",
+                                    cellTypeCol = "mg_cell_type_distinct",
+                                    sampleCol = "sample_id",
+                                    logit = TRUE, useMarkers = useMarkers)
+prop_logit_test  <- computeFeatures(sce_test,  featureType = "prop",
+                                    cellTypeCol = "clusters_mg",
+                                    sampleCol = "sample_id",
+                                    logit = TRUE, useMarkers = useMarkers)
+
+# marker means
+markerMeans_train <- computeFeatures(sce_train, featureType = "mean", assay = "norm",
+                                     cellTypeCol = "mg_cell_type_distinct",
+                                     sampleCol = "sample_id",
+                                     logit = TRUE, useMarkers = useMarkers)
+markerMeans_test  <- computeFeatures(sce_test,  featureType = "mean", assay = "norm",
+                                     cellTypeCol = "clusters_mg",
+                                     sampleCol = "sample_id",
+                                     logit = TRUE, useMarkers = useMarkers)
+```
+
+# Step 3: build the gating hierarchy by hand
+
+The manual hierarchy reflects the gating strategy used in the BioHEART-CT
+study. `data.tree::Node` builds it; `findChildren(ggtree(...))` converts
+it into the form `generateGroups()` expects.
+
+```{r mg-tree, eval = .have_cache}
+root <- Node$new("Root")
+  myeloid <- root$AddChild("Myeloid_logit")
+    myeloid$AddChild("14+ monos_logit")
+    myeloid$AddChild("16+ monos_logit")
+    myeloid$AddChild("pDCs_logit")
+    myeloid$AddChild("CD141+ DCs_logit")
+    myeloid$AddChild("CD1c+ DCs_logit")
+  root$AddChild("NK_logit")
+  root$AddChild("B cells_logit")
+  CD3 <- root$AddChild("CD3_logit")
+    CD3$AddChild("CD8hi_logit")
+    CD3$AddChild("CD8lo_logit")
+    CD4 <- CD3$AddChild("CD4_logit")
+      CD4$AddChild("CD4+ Tconv_logit")
+      CD4$AddChild("CD4+ Treg_logit")
+
+nclust_mg <- ncol(prop_logit_train)
+order_mg  <- as.phylo(root)$tip.label
+tree_mg   <- findChildren(ggtree(as.phylo(root),
+                                 ladderize = FALSE, layout = "dendrogram"))
+
+groups <- generateGroups(tree = tree_mg, nClust = nclust_mg,
+                         proportions = prop_logit_train,
+                         means = markerMeans_train)
+groups <- lapply(groups, sort)
+```
+
+# Step 4: fit and evaluate
+
+Design-matrix construction, `fitModel()`, `plotAUC()`, and
+`visualiseModelTree()` are unchanged from the introduction; only
+`type = "MG"` is passed to the visualisation helpers so they use
+the manual tree.
+
+```{r mg-fit, eval = .have_cache}
+y_train <- {
+  rn <- rownames(prop_logit_train)
+  y  <- factor(clinicaldata_train[match(rn, clinicaldata_train$sample_id), "Gensini_bin"])
+  as.numeric(levels(y))[y]
+}
+y_test <- {
+  rn <- rownames(prop_logit_test)
+  y  <- factor(clinicaldata_test[match(rn, clinicaldata_test$sample_id), "Gensini_bin"])
+  as.numeric(levels(y))[y]
+}
+
+X_train <- cbind(prop_logit_train, markerMeans_train) |> as.matrix()
+scaleVals <- preProcess(X_train, method = "scale")
+X_train   <- predict(scaleVals, X_train) |> as.matrix()
+X_test    <- cbind(prop_logit_test, markerMeans_test) |> as.matrix()
+X_test    <- predict(scaleVals, X_test)
+
+fit <- fitModel(xTrain = X_train, yTrain = y_train,
+                groups = groups, penalty = "grLasso", seed = 1994)
+```
+
+As in the unsupervised pipeline, the MMD-VAE's random initialisation
+makes the test AUC a stochastic draw. Expect the combined-model test
+AUC on the BioHEART-CT validation cohort in roughly [0.70, 0.85] across
+re-runs; the published point estimate is 0.79.
+
+## Training AUC
+
+```{r mg-train-auc, eval = .have_cache}
+plotAUC(fit$fit, X_train, y_train, title = "Train - AUC =")$plot
+```
+
+## Testing AUC
+
+```{r mg-test-auc, eval = .have_cache}
+plotAUC(fit$fit, X_test, y_test, title = "Test - AUC =")$plot
+```
+
+## Visualise the manual hierarchy
+
+```{r mg-tree-plot, eval = .have_cache, fig.height = 8, fig.width = 12}
+visualiseModelTree(fit$fit, tree = tree_mg, type = "MG",
+                   trainingData = X_train,
+                   nodesToRemove = c("Root", "Myeloid", "CD3", "CD4"),
+                   title = "Proportions + Marker Means (manual gating)")
+```
+
+# Variants: proportions-only and means-only {.tabset}
+
+The same overlap-lasso machinery can be applied to either feature family
+on its own; only the design matrix and the group structure change.
+
+## Proportions only
+
+The groups come directly from the manual gating hierarchy
+(`type = "prop"`).
+
+```{r mg-fit-prop, eval = .have_cache}
+X_train_p <- as.matrix(prop_logit_train)
+X_test_p  <- as.matrix(prop_logit_test)
+
+groups_p <- generateGroups(tree = tree_mg, nClust = nclust_mg,
+                           proportions = prop_logit_train,
+                           means = markerMeans_train, type = "prop")
+groups_p <- lapply(groups_p, sort)
+
+fit_p <- fitModel(xTrain = X_train_p, yTrain = y_train,
+                  groups = groups_p, penalty = "grLasso", seed = 1994)
+plotAUC(fit_p$fit, X_test_p, y_test, title = "Test - Proportions AUC =")$plot
+```
+
+## Means only
+
+Each per-cell-type marker mean is in its own (singleton) group.
+
+```{r mg-fit-mean, eval = .have_cache}
+X_train_m <- as.matrix(markerMeans_train)
+X_test_m  <- as.matrix(markerMeans_test)
+
+groups_m <- as.list(seq_len(ncol(markerMeans_train)))
+
+fit_m <- fitModel(xTrain = X_train_m, yTrain = y_train,
+                  groups = groups_m, penalty = "grLasso", seed = 1994)
+plotAUC(fit_m$fit, X_test_m, y_test, title = "Test - Means AUC =")$plot
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
