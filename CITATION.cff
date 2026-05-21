@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both this repository and the associated manuscript."
+type: software
+title: dioscRi
+abstract: >-
+  A deep learning framework that combines a Maximum Mean Discrepancy
+  variational autoencoder (MMD-VAE) with hierarchical Group LASSO for
+  clinical prediction in high-parameter cytometry assays.
+authors:
+  - family-names: Willie
+    given-names: Elijah
+    affiliation: "The University of Sydney"
+  - family-names: Patrick
+    given-names: Ellis
+    affiliation: "The University of Sydney"
+    email: ellis.patrick@sydney.edu.au
+license: GPL-3.0
+repository-code: "https://github.com/ecool50/dioscRi"
+url: "https://github.com/ecool50/dioscRi"
+keywords:
+  - cytometry
+  - mass-cytometry
+  - flow-cytometry
+  - deep-learning
+  - variational-autoencoder
+  - group-lasso
+  - clinical-prediction
+  - immunology
+version: "1.0.0"
+date-released: "TBD-on-acceptance"
+preferred-citation:
+  type: article
+  title: "dioscRi enables transferable prediction of clinical outcomes in multi-parameter cytometry data"
+  authors:
+    - family-names: Willie
+      given-names: Elijah
+    - family-names: Rao
+      given-names: Shreya
+    - family-names: Figtree
+      given-names: Gemma
+    - family-names: Yang
+      given-names: Jean
+    - family-names: "Fazekas de St Groth"
+      given-names: Barbara
+    - family-names: McGuire
+      given-names: Helen
+    - family-names: Patrick
+      given-names: Ellis
+  journal: "TBD"
+  year: 2026

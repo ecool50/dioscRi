@@ -14,7 +14,7 @@ We also provide functions for model visualisation and interpretation.
 
 Installation
 --------
-Before installing this package, [tensorflow - 2.16.2](https://tensorflow.rstudio.com) and [keras3 - 1.2.0](https://keras.rstudio.com) must be installed in Python and connected to R .
+Before installing this package, [tensorflow - 2.16.2](https://tensorflow.rstudio.com) and [keras3 - 1.2.0](https://keras.rstudio.com) must be installed in Python and connected to R.
 
 If you would like the most up-to-date features, install the development version from GitHub.
 ```
@@ -22,6 +22,27 @@ If you would like the most up-to-date features, install the development version 
 devtools::install_github("https://github.com/ecool50/dioscRi/")
 library(dioscRi)
 ```
+
+Pinned versions used in the manuscript:
+
+| Component | Version |
+|---|---|
+| R | 4.5.0 |
+| `keras3` (R) | 1.2.0 |
+| `tensorflow` (Python) | 2.16.2 |
+| Python | 3.10.15 (virtualenv `r-reticulate`) |
+
+A scripted helper that installs these matched versions is available at
+`revision/scripts/helpers/setup_environment.R` in the
+[companion manuscript repository](https://github.com/ecool50/dioscRi_manuscript).
+
+Reproducing the manuscript
+--------
+The manuscript analysis code, response materials, and step-by-step reproduction workflow
+live in the companion repository:
+[ecool50/dioscRi_manuscript](https://github.com/ecool50/dioscRi_manuscript). The release tag
+`v1.0.0` (both repositories) is the immutable reference for this manuscript.
+
 ### Submitting an issue or feature request
 
 `dioscRi` is still under active development. We would greatly appreciate any and 
