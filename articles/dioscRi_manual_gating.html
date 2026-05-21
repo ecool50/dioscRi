@@ -36,6 +36,7 @@
 <li><a class="dropdown-item" href="../articles/dioscRi_quickstart.html">Quickstart (toy data)</a></li>
     <li><a class="dropdown-item" href="../articles/dioscRi_introduction.html">BioHEART-CT walkthrough (unsupervised)</a></li>
     <li><a class="dropdown-item" href="../articles/dioscRi_manual_gating.html">BioHEART-CT walkthrough (manual gating)</a></li>
+    <li><a class="dropdown-item" href="../articles/dioscRi_with_clinical.html">Adding clinical covariates</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -206,6 +207,10 @@ to the visualisation helpers so they use the manual tree.</p>
 <span></span>
 <span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fitModel.html">fitModel</a></span><span class="op">(</span>xTrain <span class="op">=</span> <span class="va">X_train</span>, yTrain <span class="op">=</span> <span class="va">y_train</span>,</span>
 <span>                groups <span class="op">=</span> <span class="va">groups</span>, penalty <span class="op">=</span> <span class="st">"grLasso"</span>, seed <span class="op">=</span> <span class="fl">1994</span><span class="op">)</span></span></code></pre></div>
+<p>As in the unsupervised pipeline, the MMD-VAE’s random initialisation
+makes the test AUC a stochastic draw. Expect the combined-model test AUC
+on the BioHEART-CT validation cohort in roughly [0.70, 0.85] across
+re-runs; the published point estimate is 0.79.</p>
 <div class="section level3">
 <h3 id="training-auc">Training AUC<a class="anchor" aria-label="anchor" href="#training-auc"></a>
 </h3>
@@ -232,11 +237,11 @@ to the visualisation helpers so they use the manual tree.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 class="tabset" id="variants-proportions-only-and-means-only">Variants: proportions-only and means-only<a class="anchor" aria-label="anchor" href="#variants-proportions-only-and-means-only"></a>
+<h2 id="variants-proportions-only-and-means-only">Variants: proportions-only and means-only<a class="anchor" aria-label="anchor" href="#variants-proportions-only-and-means-only"></a>
 </h2>
 <p>The same overlap-lasso machinery can be applied to either feature
-family on its own; only the design matrix and the group structure
-change.</p>
+family on its own; the two variants below differ from the combined fit
+only in the design matrix and the group structure.</p>
 <div class="section level3">
 <h3 id="proportions-only">Proportions only<a class="anchor" aria-label="anchor" href="#proportions-only"></a>
 </h3>

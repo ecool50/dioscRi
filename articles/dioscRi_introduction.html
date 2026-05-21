@@ -36,6 +36,7 @@
 <li><a class="dropdown-item" href="../articles/dioscRi_quickstart.html">Quickstart (toy data)</a></li>
     <li><a class="dropdown-item" href="../articles/dioscRi_introduction.html">BioHEART-CT walkthrough (unsupervised)</a></li>
     <li><a class="dropdown-item" href="../articles/dioscRi_manual_gating.html">BioHEART-CT walkthrough (manual gating)</a></li>
+    <li><a class="dropdown-item" href="../articles/dioscRi_with_clinical.html">Adding clinical covariates</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -376,8 +377,8 @@ through the encoder/decoder.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">train_decoded</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/decodeSamples.html">decodeSamples</a></span><span class="op">(</span>newSamples <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">df_train</span><span class="op">[</span>, <span class="va">useMarkers</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>                                vae <span class="op">=</span> <span class="va">vae_model</span><span class="op">$</span><span class="va">vae</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## 34577/34577 - 5s - 155us/step</span></span>
-<span><span class="co">## 34577/34577 - 5s - 147us/step</span></span></code></pre>
+<pre><code><span><span class="co">## 34577/34577 - 5s - 151us/step</span></span>
+<span><span class="co">## 34577/34577 - 5s - 150us/step</span></span></code></pre>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_norm</span> <span class="op">&lt;-</span> <span class="va">train_decoded</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
 <span></span>
@@ -386,8 +387,8 @@ through the encoder/decoder.</p>
 <span></span>
 <span><span class="va">test_decoded</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/decodeSamples.html">decodeSamples</a></span><span class="op">(</span>newSamples <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">df_test</span><span class="op">[</span>, <span class="va">useMarkers</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>                               vae <span class="op">=</span> <span class="va">vae_model</span><span class="op">$</span><span class="va">vae</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## 18125/18125 - 3s - 152us/step</span></span>
-<span><span class="co">## 18125/18125 - 3s - 152us/step</span></span></code></pre>
+<pre><code><span><span class="co">## 18125/18125 - 3s - 151us/step</span></span>
+<span><span class="co">## 18125/18125 - 3s - 149us/step</span></span></code></pre>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_test_norm</span> <span class="op">&lt;-</span> <span class="va">test_decoded</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
 <span></span>
@@ -618,6 +619,12 @@ values.</p>
 </h2>
 <p>To assess how well the model is performing, we use the ROC-AUC
 curve.</p>
+<p>Because the MMD-VAE is randomly initialised and FuseSOM clustering
+includes a stochastic SOM step, expect the test AUC to land in roughly
+[0.70, 0.85] across re-runs. The published point estimate (0.83 for the
+combined model on the BioHEART-CT validation cohort) is a single draw
+from this distribution; the 95% bootstrap confidence interval reported
+in the manuscript is [0.70, 0.94].</p>
 <div class="section level3">
 <h3 id="training-auc">Training AUC<a class="anchor" aria-label="anchor" href="#training-auc"></a>
 </h3>
@@ -668,10 +675,10 @@ classes. We can also assess their statistical significance.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 class="tabset" id="variants-proportions-only-and-means-only">Variants: proportions-only and means-only<a class="anchor" aria-label="anchor" href="#variants-proportions-only-and-means-only"></a>
+<h2 id="variants-proportions-only-and-means-only">Variants: proportions-only and means-only<a class="anchor" aria-label="anchor" href="#variants-proportions-only-and-means-only"></a>
 </h2>
 <p>The same overlap-lasso machinery can be applied to either feature
-family on its own. The tabs below show the two variants; they differ
+family on its own. The two variants below differ from the combined fit
 only in the design matrix and the group structure passed to
 <code><a href="../reference/fitModel.html">fitModel()</a></code>.</p>
 <div class="section level3">
