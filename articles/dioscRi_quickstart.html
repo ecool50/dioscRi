@@ -34,10 +34,13 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/dioscRi_quickstart.html">Quickstart (toy data)</a></li>
-    <li><a class="dropdown-item" href="../articles/dioscRi_introduction.html">Full BioHEART-CT walkthrough</a></li>
+    <li><a class="dropdown-item" href="../articles/dioscRi_introduction.html">BioHEART-CT walkthrough (unsupervised)</a></li>
+    <li><a class="dropdown-item" href="../articles/dioscRi_manual_gating.html">BioHEART-CT walkthrough (manual gating)</a></li>
+    <li><a class="dropdown-item" href="../articles/dioscRi_with_clinical.html">Adding clinical covariates</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -56,12 +59,11 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-
-      <h1>dioscRi quickstart</h1>
+      <img src="../logo.png" class="logo" alt=""><h1>dioscRi quickstart</h1>
                         <h4 data-toc-skip class="author">Elijah
 Willie</h4>
             
-            <h4 data-toc-skip class="date">2026-05-21</h4>
+            <h4 data-toc-skip class="date">2026-05-22</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/ecool50/dioscRi/blob/HEAD/vignettes/dioscRi_quickstart.Rmd" class="external-link"><code>vignettes/dioscRi_quickstart.Rmd</code></a></small>
       <div class="d-none name"><code>dioscRi_quickstart.Rmd</code></div>
@@ -205,7 +207,7 @@ held-out evaluation see the full vignette.</p>
 </h2>
 <ul>
 <li>
-<code><a href="../articles/dioscRi_introduction.html">vignette("dioscRi_introduction")</a></code> — full BioHEART-CT
+<code><a href="../articles/dioscRi_introduction.html">vignette("dioscRi_introduction")</a></code>: full BioHEART-CT
 walkthrough including reference-sample selection
 (<code>computeReferenceSample</code>), MMD-VAE training
 (<code>trainVAEModel</code>), unsupervised clustering
