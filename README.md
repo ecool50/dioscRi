@@ -1,5 +1,5 @@
-dioscRi
-======================================================
+# dioscRi <img src="man/figures/logo.png" align="right" height="139" alt="dioscRi hex sticker" />
+
 A deep learning framework that combines an `MMD-VAE` with hierarchical `Group-Lasso` for clinical prediction
 in `high parameter cytometry assays`.
 
