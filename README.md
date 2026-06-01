@@ -50,6 +50,12 @@ live in the companion repository:
 [ecool50/dioscRi_manuscript](https://github.com/ecool50/dioscRi_manuscript). The release tag
 `v1.0.0` (both repositories) is the immutable reference for this manuscript.
 
+The companion repo provides two helpers under `revision/scripts/helpers/`:
+`setup_environment.R` (R packages + matched TensorFlow/Keras + Bioconductor deps) and
+`fetch_data.R` (downloads the ~7.2 GB analysis archive from
+[Zenodo 15694581](https://zenodo.org/records/15694581) into `$BIOHEART_ROOT/data/`
+and verifies the md5).
+
 ### Submitting an issue or feature request
 
 `dioscRi` is still under active development. We would greatly appreciate any and 

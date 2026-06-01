@@ -12,7 +12,7 @@ Description: Predicts patient-level clinical outcomes from high-parameter
     means, then modelled with an overlapping group lasso over a cell-type
     hierarchy so that predictions come with interpretable feature
     importances at the cell-population and marker level.
-License: GPL-2
+License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
